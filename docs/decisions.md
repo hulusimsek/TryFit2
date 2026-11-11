@@ -16,6 +16,7 @@
 | D10 | Kapsam sınırı | Hazır görsel profil fiziksel beden simülasyonu değildir; boy/kilodan kesin ölçü veya beden uygunluğu iddia edilmez. | Eski `FitAdvisorService.cs` tahmini vücut formülleri ve üretilmiş standart beden matrisleri kullanıyor. Bu kod gerçek ürün ölçüsü/fit doğrulaması kanıtı değildir; yeni projede böyle bir özellik tamamlanmadı. |
 | D11 | Yerel araştırma tercihi | Dört ürün, üç profil, JSON kayıt ve tek tüketicili bellek kuyruğu yeterlidir. | [Yerel ekran](local-app.md). Kalıcı dağıtık kuyruk/veritabanı bugünkü kapsam için eklenmez; çok sunuculu güvenilirlik sağlandığı iddia edilmez. |
 | D12 | Kural / yayın öncesi açık iş | Gizlilik, model bileşenlerinin lisansları ve bütçe dağıtımı sınırlar. | Görseller/sonuçlar Git dışında; bu tek başına erişim kontrolü değildir. Depodaki lisans notları ticari kullanım engelleri bildiriyor. Güncel dağıtım uygunluğu ayrıca doğrulanmalı; ücretli kaynak için açık onay gerekir. |
+| D13 | Kabul edildi (etek çalışma anı maskesi — sınırlı aşama) | Problem: Baz etek akışında ayak bileği yatay izi ve `patterned-blouse + tuckTop=true` bel `cut` çizgisinde beyaz yatay şerit oluşması. Seçenekler: (a) baldırda `calf_outward` genişletmesi (reddedildi: ~5 px halo ve `slender` etek ucu çentiği), (b) yalnız `end` + `feet_fade`, baldırda baz davranışın korunması ve `tuck_top=True` altında `tuck_fade`. Seçilen çözüm ve yeniden değerlendirme koşulu: (b) kabul edildi; açık iki sınırlı görsel hata (`slender + tshirt + tuckTop=false` kahverengi renk kayması, `fuller + patterned-blouse + tuckTop=true` toka kontrastı zayıflaması) veya yeni profil/ürün eklenmesi hâlinde yeniden açılır. | [progress.md](progress.md), [known-issues.md](known-issues.md) (`K14`, `K15`), `ai-worker/app/local_skirt_inputs.py`. 12 kombinasyonlu doğrulama (`6` `tuckTop=true`, `6` `tuckTop=false`) tamamlandı; bilek izi ve bel şeridi giderildi. İki yan bulgu açık bırakıldı (`ba156bf7`, `f1fa3bfd`). |
 
 ## Eski TryFit referansının sınırları
 
@@ -36,5 +37,6 @@ Bu dersler kaynak incelemesinden çıkarımlardır; eski uygulama bu görevde ç
 - TODO: Kullanıcı kimliği, iş/görsel sahipliği ve saklama/silme politikası.
 - TODO: Yayın için model ve tüm yardımcı bileşenlerin lisans uygunluğunun doğrulanması. Bu belge hukuki izin yerine geçmez.
 - TODO: Bağımsız değerlendirici, farklı hedef kişiler/pozlar ve iki parçalı kombinler için genişletilmiş kalite kapısı.
+- TODO (etek maskesi sonrası açık bilinen sorunlar — çözülmedi): `slender + tshirt + tuckTop=false` (`ba156bf7`) etek renginin kahverengiye kayması ve `fuller + patterned-blouse + tuckTop=true` (`f1fa3bfd`) toka kontrastının zayıflaması.
 
 Yeni kararda problem, seçenekler, seçilen en basit çözüm, kanıt, sonuç ve yeniden değerlendirme koşulu kaydedilmelidir.

@@ -157,4 +157,14 @@ Sonraki mantıklı adım (Deney 3 sonrası): `tuck_fade` değişikliğinin kalan
   - `fuller + patterned-blouse`: `89cab9ed9d5645d39982378cc0f5308f` (`615094` bayt, baz `991b47a0fe1e419b950bd0cc15575a83`). Ayak bileği izi giderildi; baldırlar pürüzsüz (`y620..800 L1=0.183`), gümüş C-toka bluz alt kenarında görünür, bel geçişi ve siyah pileli etek (`RGB 24.1, 23.6, 23.7`, `y<800 L1=0.104`) bazla tutarlı kaldı.
 - Birim testleri: ana `.venv` `65` test (`64` geçti, `1` atlandı — `test_actual_adapted_unet_matches_batched_forward`), `.venv-catvton` `13` test (`test_catvton_skirt.py`, `test_catvton.py`, `test_local_skirt.py` — `13/13` geçti).
 
-Sonraki mantıklı adım: Kullanıcı onayıyla (a) `slender + tshirt + tuckTop=false` (`ba156bf7`) etek renk kayması ve/veya `fuller + patterned-blouse + tuckTop=true` (`f1fa3bfd`) toka kontrastı üzerinde tek değişkenli iyileştirme gerekip gerekmediğine karar vermek, ya da (b) doğrulanmış mevcut maske davranışını bu bilinen sınırlarıyla kabul etmek.
+## Etek çalışma anı maskesi iyileştirmelerinin kabulü (aşamalı kapanış) — 12 Kasım 2026
+
+- Kabul edilen maske davranışları (`ai-worker/app/local_skirt_inputs.py`, ek kaynak değişikliği yapılmadı):
+  - Ayak bileği geçişi (`end` sınırının `feet_y.min()` ile ayak üstüne uzatılması + `feet_fade`): test edilen `12` kombinasyonun (`6` `tuckTop=true`, `6` `tuckTop=false`) tamamında ayak bileğindeki yatay paça izini giderdi.
+  - Baldır maskesi: Deney 1'deki `calf_outward` genişletmesi reddedilmiş olarak kaldı; `labels==0` altında baz `outward * vertical` davranışı korunarak kalın baldır haloları ve `slender` etek ucu çentiği önlendi.
+  - Bel geçişi (`tuck_fade`): `tuck_top=True` iken `tuck_fade` (`6` px @ `864`) `patterned-blouse` bel `cut` çizgisindeki beyaz yatay şeridi giderdi (`slender` `aef762d9`, `fuller` `f1fa3bfd`, `medium` `321786e7`) ve `tuckTop=false` koşularında devreye girmedi.
+- Gelecekte ele alınacak bilinen iki sınırlı sorun (açık bırakıldı — çözülmedi; bkz. [known-issues.md](known-issues.md) `K14`, `K15` ve [decisions.md](decisions.md) `D13`):
+  - `slender + tshirt + tuckTop=false` (`ba156bf7`): Etek renginin baz (`25a9b1d3`) koyu kömür tonundan sıcak kahverengiye kayması.
+  - `fuller + patterned-blouse + tuckTop=true` (`f1fa3bfd`): Kemer tokası kontrastının baz (`6304adf4`) koşusuna kıyasla zayıflaması.
+
+Sonraki mantıklı adım: Etek aşamasında yeni deney başlatmadan, kabul edilen bu karma yerel akışın ve projenin diğer parçalarının (üst/pantolon dâhil) gerçek farklı kişi/pozlar ve bağımsız görsel değerlendirme eşiği ([evaluation-protocol.md](evaluation-protocol.md) / `D06` / `K01`) çerçevesinde genel kalite doğrulamasını planlamak; bilinen `K14` ve `K15` sorunlarını da ayrı gelecek iyileştirme maddeleri olarak ele almak.

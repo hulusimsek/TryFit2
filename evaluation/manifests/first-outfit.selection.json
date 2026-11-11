@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "purpose": "İlk iki parçalı kombin denemesi; inference manifesti değildir.",
+  "status": "improved_with_model_source_and_upper_protection",
+  "avatar": {
+    "height_cm": 175,
+    "weight_kg": 65,
+    "image": "data/first-outfit/avatar-baseline.png",
+    "note": "175 cm / 65 kg ilk deney girdisidir; kullanıcıya göre değişir. Boy ve kilo tek başına vücut şeklini veya gerçek beden uyumunu belirlemez.",
+    "profile_scope": "per_user",
+    "match_precision": "approximate_not_measured",
+    "source": "Built-in image_gen synthetic baseline; not a VTON result",
+    "measured": false
+  },
+  "items": [
+    {
+      "id": "sweatshirt-1025061091",
+      "category": "tops",
+      "product_url": "https://www.trendyol.com/uyguntarz/unisex-yumusak-dokulu-duz-3-iplik-oversize-sweatshirt-sade-ve-modern-gorunum-p-1025061091?boutiqueId=61&merchantId=409382",
+      "label_from_user_url": "Uyguntarz oversize sweatshirt",
+      "source_image_url": null,
+      "page_verified": false,
+      "image": "data/first-outfit/hoodie.png",
+      "garment_photo_type": "flat-lay",
+      "source_notes": "Lacivert kapüşonlu, kanguru cepli düz ürün görseli. Yanlarda galeri okları var; orijinal dosya korunuyor.",
+      "source_origin": "user_attachment",
+      "image_sha256": "25389831ca735d87d19068d03275329226c384d575291e4adab4c6175dd17b5a",
+      "image_size": [
+        519,
+        718
+      ]
+    },
+    {
+      "id": "pajama-bottoms-1185662459",
+      "category": "bottoms",
+      "product_url": "https://www.trendyol.com/koza-ic-giyim/kadin-rahat-kesim-2-li-pamuklu-pijama-alti-p-1185662459?boutiqueId=61&merchantId=869555",
+      "label_from_user_url": "Koza İç Giyim kadın rahat kesim 2'li pamuklu pijama altı",
+      "source_image_url": null,
+      "selected_pack_item": "Siyah üzerine beyaz puantiyeli pijama altı; kullanıcı tarafından yüklenen görsel",
+      "page_verified": false,
+      "image": "data/first-outfit/pajama-bottoms.png",
+      "garment_photo_type": "model",
+      "source_notes": "Siyah üzerine beyaz puantiyeli pijama altı seçildi. Kaynak kişinin yüzü kadraj dışında; ayaklar görünür. Yanlarda galeri okları var.",
+      "source_origin": "user_attachment",
+      "image_sha256": "9c9628e0f76d3d0ca1d484433c250e9bc927db023bb7d3c163a89e20bdeba241",
+      "image_size": [
+        484,
+        786
+      ]
+    }
+  ],
+  "evaluation_note": "Sentetik görsel manken hazır. 175/65 yalnızca yaklaşık görsel profil; ölçülü vücut modeli değildir. Üst ve alt iki sırayla yerel FASHN inference testine girecek.",
+  "results": {
+    "primary_run": "runs/outfit-20261110T001523Z-3b4bfe",
+    "refinement_run": "runs/hoodie-refinement-01",
+    "quality_passed": false,
+    "improved_run": "runs/protected-outfit-d24e679a",
+    "source_comparison_run": "runs/source-comparison-9949970f"
+  }
+}

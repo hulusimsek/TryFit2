@@ -1,0 +1,17 @@
+{
+  "tool": "built-in image_gen.imagegen; no CLI/API key used",
+  "purpose": "Synthetic neutral target images only; not try-on results",
+  "reference_image": "data/first-outfit/avatar-baseline.png",
+  "measured": false,
+  "continuous_height_weight_model": false,
+  "prompts": [
+    {
+      "id": "slender",
+      "prompt": "Use case: identity-preserve. Asset type: neutral synthetic adult target-person baseline for a LOCAL virtual try-on research comparison, NOT an outfit result. Input image 1 is the edit target and identity/pose/background reference. Preserve the same fictional adult woman's face, age, brown hair behind the shoulders, frontal standing pose, arms slightly separated from torso, fully visible hands, bare feet, pale grey seamless studio background, soft even lighting, ordinary realistic catalogue photography. Keep the plain fitted LIGHT GREY short-sleeve crewneck T-shirt and fitted MEDIUM GREY ankle-length leggings, without patterns or logos. Full body head through both bare feet entirely within the portrait frame with margins. Change only the overall BODY BUILD as specified. Keep proportions natural, not exaggerated. No measurement rulers, numeric labels, text, accessories, hoodies, black shirts, trousers, or selected shopping products. This is a visual proxy, NOT measured height/weight reconstruction. Output a single 2:3 portrait photograph. Body-build variant: a distinctly smaller, slender adult frame, narrower shoulders, slimmer upper arms, waist, hips and thighs than the reference. An ordinary petite adult body, not emaciated, not an adolescent. Preserve the same adult face and comparable full-body composition."
+    },
+    {
+      "id": "fuller",
+      "prompt": "Use case: identity-preserve. Asset type: neutral synthetic adult target-person baseline for a LOCAL virtual try-on research comparison, NOT an outfit result. Input image 1 is the edit target and identity/pose/background reference. Preserve the same fictional adult woman's face, age, brown hair behind the shoulders, frontal standing pose, arms slightly separated from torso, fully visible hands, bare feet, pale grey seamless studio background, soft even lighting, ordinary realistic catalogue photography. Keep the plain fitted LIGHT GREY short-sleeve crewneck T-shirt and fitted MEDIUM GREY ankle-length leggings, without patterns or logos. Full body head through both bare feet entirely within the portrait frame with margins. Change only the overall BODY BUILD as specified. Keep proportions natural, not exaggerated. No measurement rulers, numeric labels, text, accessories, hoodies, black shirts, trousers, or selected shopping products. This is a visual proxy, NOT measured height/weight reconstruction. Output a single 2:3 portrait photograph. Body-build variant: a distinctly fuller and broader adult frame, broader shoulders, fuller upper arms, a visibly wider waist and softly rounded abdomen, fuller hips and thighs than the reference. An ordinary full-bodied adult woman with natural skin and anatomy, not an exaggerated shape. Preserve the same adult face and comparable full-body composition."
+    }
+  ]
+}

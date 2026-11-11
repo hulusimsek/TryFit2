@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "id": "hooded-sweatshirt",
+  "image": "data/benchmark-10/hooded-sweatshirt.jpg",
+  "image_sha256": "1e6d1564c1d8d50d2ff96bed737e929588a2894f3ad6c77113e4899fcd4f192e",
+  "category": "tops",
+  "researcher_annotation": true,
+  "notes": "Visible selected garment only, including its belt when applicable. Exclude skin, hair, accessories, footwear and other garment layers. Hidden garment fabric is not reconstructed.",
+  "points_normalized": [
+    [
+      0.28,
+      0.43
+    ],
+    [
+      0.18,
+      0.56
+    ],
+    [
+      0.68,
+      0.43
+    ],
+    [
+      0.76,
+      0.62
+    ],
+    [
+      0.6,
+      0.75
+    ],
+    [
+      0.24,
+      0.8
+    ],
+    [
+      0.65,
+      0.33
+    ],
+    [
+      0.46,
+      0.51
+    ],
+    [
+      0.45,
+      0.64
+    ],
+    [
+      0.55,
+      0.58
+    ],
+    [
+      0.29,
+      0.75
+    ],
+    [
+      0.5,
+      0.83
+    ],
+    [
+      0.5,
+      0.23
+    ],
+    [
+      0.1,
+      0.3
+    ]
+  ],
+  "labels": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

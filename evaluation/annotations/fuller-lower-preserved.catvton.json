@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "profile_id": "fuller",
+  "image": "data/avatar-profiles/fuller.png",
+  "image_sha256": "1bee860fb91a63bacf10d9a5463963bf6eb3fb4d2e427408e37a546dfa28b460",
+  "method": "Expanded waist envelope plus strict parser-based upper/skin/hands/feet preservation. Two changes relative to parent, not a single-variable attribution.",
+  "notes": "Long top and wider hips than short-top control. Keep hands and feet outside hard mask; inspect blur boundaries. Hidden belt is not a visible-detail success.",
+  "polygon_normalized": [
+    [
+      0.31,
+      0.4
+    ],
+    [
+      0.69,
+      0.4
+    ],
+    [
+      0.76,
+      0.58
+    ],
+    [
+      0.69,
+      0.66
+    ],
+    [
+      0.66,
+      0.88
+    ],
+    [
+      0.34,
+      0.88
+    ],
+    [
+      0.31,
+      0.66
+    ],
+    [
+      0.24,
+      0.58
+    ]
+  ],
+  "exclusion_polygons_normalized": [
+    [
+      [
+        0.23,
+        0.46
+      ],
+      [
+        0.3,
+        0.48
+      ],
+      [
+        0.3,
+        0.57
+      ],
+      [
+        0.26,
+        0.59
+      ],
+      [
+        0.2,
+        0.54
+      ]
+    ],
+    [
+      [
+        0.7,
+        0.48
+      ],
+      [
+        0.77,
+        0.46
+      ],
+      [
+        0.8,
+        0.54
+      ],
+      [
+        0.74,
+        0.59
+      ],
+      [
+        0.7,
+        0.57
+      ]
+    ]
+  ],
+  "preserve_mask_image": "runs/catvton-profile-suite-a33ae897/fuller-lower-preserve.png",
+  "preserve_mask_sha256": "ad6e5246fe60dfce66648d72f10917d9ae017ebff36e66d1c9376bf3d177ef06",
+  "preserve_mask_target_sha256": "1bee860fb91a63bacf10d9a5463963bf6eb3fb4d2e427408e37a546dfa28b460",
+  "preservation_source": "Real FASHN human-parser labels 1,2,3,12,13,15,16 on this exact target; CPU preparation; masks are not measured body reconstruction",
+  "parent_annotation": "evaluation/annotations/fuller-lower.catvton.json"
+}

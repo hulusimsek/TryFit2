@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "trench-coat",
+  "image": "data/benchmark-10/trench-coat.jpg",
+  "image_sha256": "7ae134fd386231d8dae2c7b23e0bb11a7198a8c22ea52ed636c2e403a327eba9",
+  "category": "tops",
+  "researcher_annotation": true,
+  "notes": "Visible selected garment only, including its belt when applicable. Exclude skin, hair, accessories, footwear and other garment layers. Hidden garment fabric is not reconstructed.",
+  "points_normalized": [
+    [
+      0.44,
+      0.38
+    ],
+    [
+      0.29,
+      0.49
+    ],
+    [
+      0.68,
+      0.52
+    ],
+    [
+      0.45,
+      0.8
+    ],
+    [
+      0.65,
+      0.84
+    ],
+    [
+      0.44,
+      0.497
+    ],
+    [
+      0.52,
+      0.63
+    ],
+    [
+      0.51,
+      0.27
+    ],
+    [
+      0.36,
+      0.68
+    ],
+    [
+      0.68,
+      0.69
+    ],
+    [
+      0.49,
+      0.15
+    ],
+    [
+      0.1,
+      0.6
+    ],
+    [
+      0.3,
+      0.98
+    ]
+  ],
+  "labels": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

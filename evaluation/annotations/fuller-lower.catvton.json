@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "profile_id": "fuller",
+  "image": "data/avatar-profiles/fuller.png",
+  "image_sha256": "1bee860fb91a63bacf10d9a5463963bf6eb3fb4d2e427408e37a546dfa28b460",
+  "method": "Researcher-drawn lower-body envelope for this exact fuller visual preset; not measured body fit or automatic masking",
+  "notes": "Long top and wider hips than short-top control. Keep hands and feet outside hard mask; inspect blur boundaries. Hidden belt is not a visible-detail success.",
+  "polygon_normalized": [[0.31, 0.45], [0.69, 0.45], [0.76, 0.58], [0.69, 0.66], [0.66, 0.88], [0.34, 0.88], [0.31, 0.66], [0.24, 0.58]],
+  "exclusion_polygons_normalized": [
+    [[0.23, 0.46], [0.30, 0.48], [0.30, 0.57], [0.26, 0.59], [0.20, 0.54]],
+    [[0.70, 0.48], [0.77, 0.46], [0.80, 0.54], [0.74, 0.59], [0.70, 0.57]]
+  ]
+}

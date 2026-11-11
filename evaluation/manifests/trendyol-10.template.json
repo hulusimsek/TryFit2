@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "person": {"image": "data/person.jpg", "consent_confirmed": false},
+  "cases": [
+    {"id": "oversize-hoodie", "label": "Oversize hoodie", "category": "tops", "garment_photo_type": "model", "image": "data/oversize-hoodie.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "tshirt", "label": "Tişört", "category": "tops", "garment_photo_type": "model", "image": "data/tshirt.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "patterned-blouse", "label": "Desenli bluz", "category": "tops", "garment_photo_type": "model", "image": "data/patterned-blouse.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "trench-coat", "label": "Trençkot", "category": "tops", "garment_photo_type": "model", "image": "data/trench-coat.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "denim-jacket", "label": "Kot ceket", "category": "tops", "garment_photo_type": "model", "image": "data/denim-jacket.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "long-dress", "label": "Uzun elbise", "category": "one-pieces", "garment_photo_type": "model", "image": "data/long-dress.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "fitted-dress", "label": "Dar elbise", "category": "one-pieces", "garment_photo_type": "model", "image": "data/fitted-dress.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "wide-trousers", "label": "Geniş pantolon", "category": "bottoms", "garment_photo_type": "model", "image": "data/wide-trousers.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "skirt", "label": "Etek", "category": "bottoms", "garment_photo_type": "model", "image": "data/skirt.jpg", "product_url": "", "source_image_url": "", "source_notes": ""},
+    {"id": "hooded-sweatshirt", "label": "Kapüşonlu sweatshirt", "category": "tops", "garment_photo_type": "model", "image": "data/hooded-sweatshirt.jpg", "product_url": "", "source_image_url": "", "source_notes": ""}
+  ]
+}

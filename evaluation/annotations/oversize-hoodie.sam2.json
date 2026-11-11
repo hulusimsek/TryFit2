@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "id": "oversize-hoodie",
+  "image": "data/first-outfit/gallery/gallery-4.jpg",
+  "image_sha256": "5cb166654132985da22e35843144c1e332aac32ebee3abfc7b01097706260914",
+  "category": "tops",
+  "researcher_annotation": true,
+  "notes": "Visible selected garment only, including its belt when applicable. Exclude skin, hair, accessories, footwear and other garment layers. Hidden garment fabric is not reconstructed.",
+  "points_normalized": [
+    [
+      0.2,
+      0.2
+    ],
+    [
+      0.2,
+      0.29
+    ],
+    [
+      0.58,
+      0.43
+    ],
+    [
+      0.86,
+      0.5
+    ],
+    [
+      0.55,
+      0.6
+    ],
+    [
+      0.7,
+      0.3
+    ],
+    [
+      0.45,
+      0.26
+    ],
+    [
+      0.55,
+      0.12
+    ],
+    [
+      0.37,
+      0.8
+    ],
+    [
+      0.38,
+      0.13
+    ],
+    [
+      0.7,
+      0.6
+    ],
+    [
+      0.08,
+      0.55
+    ]
+  ],
+  "labels": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

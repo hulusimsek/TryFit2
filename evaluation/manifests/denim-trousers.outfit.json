@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "purpose": "Protected two-piece outfit validation",
+  "avatar": {
+    "height_cm": 175,
+    "weight_kg": 65,
+    "image": "data/first-outfit/avatar-baseline.png",
+    "note": "175 cm / 65 kg ilk deney girdisidir; kullanıcıya göre değişir. Boy ve kilo tek başına vücut şeklini veya gerçek beden uyumunu belirlemez.",
+    "profile_scope": "per_user",
+    "match_precision": "approximate_not_measured",
+    "source": "Built-in image_gen synthetic baseline; not a VTON result",
+    "measured": false
+  },
+  "items": [
+    {
+      "id": "denim-jacket",
+      "label": "Kot ceket",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/denim-jacket.jpg",
+      "product_url": "https://www.trendyol.com/ekim-store/crop-denim-kot-ceket-p-286763026",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty443/product/media/images/20220530/17/118366940/456275267/1/1_org_zoom.jpg",
+      "source_notes": "Mankenli; açık mavi açık ön crop kot ceket; baş kadraj dışında, çanta askısı ve iç bluz var.",
+      "image_sha256": "244ccc93b36a722a44d330c64c37ca6e979466f69514be0a42ccc8b59e56cf0f",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "wide-trousers",
+      "label": "Geniş pantolon",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/wide-trousers.jpg",
+      "product_url": "https://www.trendyol.com/bikelife/kadin-siyah-likrali-palazzo-salas-genis-paca-pantolon-p-800599725",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1962/prod/QC_ENRICHMENT/20260923/10/f909ec70-42b2-3324-8b61-f97f8d72b845/1_org_zoom.jpg",
+      "source_notes": "Mankenli görünümlü ürün görseli; siyah kemerli geniş paça. Görselin altında yapay zeka ile üretildiği etiketi var; gerçek fotoğraf olduğu iddia edilmiyor.",
+      "image_sha256": "0a769599f21109140c589cfcdb64fcba9702180e1d1bd71bb7884ddc7cbe5eea",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": true
+    }
+  ]
+}

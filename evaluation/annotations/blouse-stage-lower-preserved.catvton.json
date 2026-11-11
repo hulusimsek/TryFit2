@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "profile_id": "medium",
+  "image": "runs/protected-outfit-19ded10e/01-top.png",
+  "image_sha256": "98c2f9186e4f44b0c285ff95f6844c99c7f4cb2d58749e4c7559df0ed3a8f48b",
+  "upper_stage_run": "runs/protected-outfit-19ded10e",
+  "upper_product_id": "patterned-blouse",
+  "method": "Expanded waist envelope plus strict preservation of actual first-stage blouse/skin/hands/feet. Two changes relative to parent.",
+  "notes": "Do not regenerate or paste a synthetic blouse. Reuse exact real first-stage pixels. Mask blur can still touch the blouse hem; inspect raw and repaint separately.",
+  "polygon_normalized": [
+    [
+      0.34,
+      0.35
+    ],
+    [
+      0.66,
+      0.35
+    ],
+    [
+      0.7,
+      0.55
+    ],
+    [
+      0.66,
+      0.65
+    ],
+    [
+      0.65,
+      0.875
+    ],
+    [
+      0.35,
+      0.875
+    ],
+    [
+      0.34,
+      0.65
+    ],
+    [
+      0.3,
+      0.55
+    ]
+  ],
+  "exclusion_polygons_normalized": [
+    [
+      [
+        0.285,
+        0.47
+      ],
+      [
+        0.34,
+        0.48
+      ],
+      [
+        0.35,
+        0.56
+      ],
+      [
+        0.31,
+        0.58
+      ],
+      [
+        0.26,
+        0.54
+      ]
+    ],
+    [
+      [
+        0.66,
+        0.48
+      ],
+      [
+        0.715,
+        0.47
+      ],
+      [
+        0.74,
+        0.54
+      ],
+      [
+        0.69,
+        0.58
+      ],
+      [
+        0.65,
+        0.56
+      ]
+    ]
+  ],
+  "preserve_mask_image": "runs/catvton-profile-suite-a33ae897/blouse-stage-lower-preserve.png",
+  "preserve_mask_sha256": "735a2126dad3da62c9188617e00aacd3990f772f8b1b473f08950424136cfbec",
+  "preserve_mask_target_sha256": "98c2f9186e4f44b0c285ff95f6844c99c7f4cb2d58749e4c7559df0ed3a8f48b",
+  "preservation_source": "Real FASHN human-parser labels 1,2,3,12,13,15,16 on this exact target; CPU preparation; masks are not measured body reconstruction",
+  "parent_annotation": "evaluation/annotations/blouse-stage-lower.catvton.json"
+}

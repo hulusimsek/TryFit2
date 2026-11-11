@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "person": {
+    "image": "data/first-outfit/avatar-baseline.png",
+    "consent_confirmed": true,
+    "source": "synthetic baseline, not a measured 175/65 body"
+  },
+  "cases": [
+    {
+      "id": "oversize-hoodie",
+      "label": "Oversize hoodie",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/first-outfit/gallery/gallery-4.jpg",
+      "source_image_url": "https://cdn.dsmcdn.com/ty1961/prod/QC_ENRICHMENT/20260921/18/029af96c-64b3-3ce1-aef1-c5f290db9fe1/1_org_zoom.jpg",
+      "product_url": "https://www.trendyol.com/uyguntarz/unisex-yumusak-dokulu-duz-3-iplik-oversize-sweatshirt-sade-ve-modern-gorunum-p-1025061091?boutiqueId=61&merchantId=409382",
+      "source_notes": "Mankenli; bir kol yukarıda, el cepte, saç kapüşonu kısmen kapatıyor.",
+      "source_inspected": true,
+      "image_sha256": "5cb166654132985da22e35843144c1e332aac32ebee3abfc7b01097706260914",
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "tshirt",
+      "label": "Tişört",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/tshirt.jpg",
+      "product_url": "https://www.trendyol.com/dilvin/3683-basic-t-shirt-siyah-p-87044322",
+      "source_image_url": "https://cdn.dsmcdn.com/ty1855/prod/QC_ENRICHMENT/20260415/00/17dfe667-93b1-34a0-abed-5abcb1d04754/1_org_zoom.jpg",
+      "source_notes": "Mankenli; siyah kısa kollu basic tişört, tek el belde/cepte; önden hafif açılı.",
+      "image_sha256": "a23cf6dd4abc1e62bdc35a8f76e6d948826635a1b6f7d0f85065e2d4c2dc641c",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "patterned-blouse",
+      "label": "Desenli bluz",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/patterned-blouse.jpg",
+      "product_url": "https://www.trendyol.com/mango/cicek-desenli-bluz-p-305224017",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty706/product/media/images/20230129/20/269357371/487657681/1/1_org_zoom.jpg",
+      "source_notes": "Mankenli; beyaz üzerine küçük çiçek desenli ince askılı bluz, bir el cepte, hafif çapraz gövde.",
+      "image_sha256": "6a7722077970abd848fe3f8e4fe93bfad4cbfefabb26d3d73f924248b6ea2261",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "trench-coat",
+      "label": "Trençkot",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/trench-coat.jpg",
+      "product_url": "https://www.trendyol.com/sateen/kusakli-uzun-trenckot-bej-p-866952143",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1827/prod/QC_ENRICHMENT/20260221/15/06b1ca09-5b3f-37e8-9949-eac29de89b05/1_org_zoom.jpg",
+      "source_notes": "Mankenli; bej uzun kuşaklı trençkot, yakada fular, siyah eldivenler; katman/aksesuar karışması riski.",
+      "image_sha256": "7ae134fd386231d8dae2c7b23e0bb11a7198a8c22ea52ed636c2e403a327eba9",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "denim-jacket",
+      "label": "Kot ceket",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/denim-jacket.jpg",
+      "product_url": "https://www.trendyol.com/ekim-store/crop-denim-kot-ceket-p-286763026",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty443/product/media/images/20220530/17/118366940/456275267/1/1_org_zoom.jpg",
+      "source_notes": "Mankenli; açık mavi açık ön crop kot ceket; baş kadraj dışında, çanta askısı ve iç bluz var.",
+      "image_sha256": "244ccc93b36a722a44d330c64c37ca6e979466f69514be0a42ccc8b59e56cf0f",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "long-dress",
+      "label": "Uzun elbise",
+      "category": "one-pieces",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/long-dress.jpg",
+      "product_url": "https://www.trendyol.com/grimelange/pani-kadin-maxi-boy-etek-kismi-dokuma-poplin-klos-ust-kismi-esnek-viskon-elastan-sik-siyah-elbise-p-879988342",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1638/prod/QC/20250219/12/b11ec61a-ef96-3e1b-8a2e-f1931a872fcd/1_org_zoom.jpg",
+      "source_notes": "Mankenli; siyah uzun kollu kloş midi-maxi elbise, kaynakta çizme ve bilezik var.",
+      "image_sha256": "d479918899e895164f2136fa76196a0715ce9bc8dbcf3f1b96bfea6df99c16dc",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "fitted-dress",
+      "label": "Dar elbise",
+      "category": "one-pieces",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/fitted-dress.jpg",
+      "product_url": "https://www.trendyol.com/dilvin/91097-vucuda-oturan-elbise-siyah-p-815123427",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1550/prod/QC/20240916/21/75e707eb-7958-3dd0-a242-1347c935e72c/1_org_zoom.jpg",
+      "source_notes": "Mankenli; siyah/dark dar midi elbise, kısa kol, güneş gözlüğü ve ayakkabı var.",
+      "image_sha256": "531f3b7485f2d03983f2fcce1d0700943c815bb68f7575aeeb33a00a8c8e963e",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "wide-trousers",
+      "label": "Geniş pantolon",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/wide-trousers.jpg",
+      "product_url": "https://www.trendyol.com/bikelife/kadin-siyah-likrali-palazzo-salas-genis-paca-pantolon-p-800599725",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1962/prod/QC_ENRICHMENT/20260923/10/f909ec70-42b2-3324-8b61-f97f8d72b845/1_org_zoom.jpg",
+      "source_notes": "Mankenli görünümlü ürün görseli; siyah kemerli geniş paça. Görselin altında yapay zeka ile üretildiği etiketi var; gerçek fotoğraf olduğu iddia edilmiyor.",
+      "image_sha256": "0a769599f21109140c589cfcdb64fcba9702180e1d1bd71bb7884ddc7cbe5eea",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": true
+    },
+    {
+      "id": "skirt",
+      "label": "Etek",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/skirt.jpg",
+      "product_url": "https://www.trendyol.com/swist/siyah-full-pileli-kemerli-astar-sortlu-kadin-mini-etek-p-811422352",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1602/prod/QC/20241118/13/410bf519-8e77-3379-86aa-7d7f7b8f57c7/1_org_zoom.jpg",
+      "source_notes": "Mankenli; siyah pileli kemerli mini etek; dış mekân, çanta askısı, çapraz bacak/poz ve güneş gözlüğü.",
+      "image_sha256": "dcbea6216e1676e515c9e2e72d6e3f303f61a4f9bc4b912711edb6d1138ccad7",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "id": "hooded-sweatshirt",
+      "label": "Kapüşonlu sweatshirt",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/hooded-sweatshirt.jpg",
+      "product_url": "https://www.trendyol.com/koton/fermuarli-kapsonlu-baskili-sardonlu-sweatshirt-p-851793530",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1574/prod/QC/20240927/21/36f39c6d-ecb0-394a-9307-5b32fb49caa1/1_org_zoom.jpg",
+      "source_notes": "Mankenli; kahverengi fermuarlı açık kapüşonlu üst, içeride siyah crop; eller fermuar/cep üzerinde, kaynak baş/omuzları net.",
+      "image_sha256": "1e6d1564c1d8d50d2ff96bed737e929588a2894f3ad6c77113e4899fcd4f192e",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    }
+  ],
+  "scope": "10 gerçek Trendyol ürün kaydı; kaynakta giyilmiş kıyafet görselleri. Bir kaynakta AI üretim etiketi gözlendi. Tek sentetik hedef kişi; beden uyumu testi değildir."
+}

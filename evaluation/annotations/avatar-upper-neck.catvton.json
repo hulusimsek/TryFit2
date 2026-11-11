@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "image": "data/first-outfit/avatar-baseline.png",
+  "image_sha256": "faae31c77da58da8944ef283bea49fadd581eed923f99900aeca89e4be8c751b",
+  "method": "Researcher-drawn upper-body envelope, same mask for all three cases; not automatic or body measurement; separate bounded neck-margin control, not replacement of original mask",
+  "polygon_normalized": [
+    [
+      0.3,
+      0.18
+    ],
+    [
+      0.43,
+      0.155
+    ],
+    [
+      0.44,
+      0.16
+    ],
+    [
+      0.56,
+      0.16
+    ],
+    [
+      0.57,
+      0.155
+    ],
+    [
+      0.7,
+      0.18
+    ],
+    [
+      0.71,
+      0.31
+    ],
+    [
+      0.76,
+      0.5
+    ],
+    [
+      0.67,
+      0.51
+    ],
+    [
+      0.62,
+      0.37
+    ],
+    [
+      0.66,
+      0.46
+    ],
+    [
+      0.35,
+      0.46
+    ],
+    [
+      0.38,
+      0.37
+    ],
+    [
+      0.32,
+      0.51
+    ],
+    [
+      0.25,
+      0.5
+    ],
+    [
+      0.29,
+      0.31
+    ]
+  ]
+}

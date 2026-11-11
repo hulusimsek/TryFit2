@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "id": "patterned-blouse",
+  "image": "data/benchmark-10/patterned-blouse.jpg",
+  "image_sha256": "6a7722077970abd848fe3f8e4fe93bfad4cbfefabb26d3d73f924248b6ea2261",
+  "category": "tops",
+  "researcher_annotation": true,
+  "notes": "Visible selected garment only, including its belt when applicable. Exclude skin, hair, accessories, footwear and other garment layers. Hidden garment fabric is not reconstructed.",
+  "points_normalized": [
+    [
+      0.47,
+      0.44
+    ],
+    [
+      0.57,
+      0.53
+    ],
+    [
+      0.39,
+      0.43
+    ],
+    [
+      0.6,
+      0.298
+    ],
+    [
+      0.355,
+      0.34
+    ],
+    [
+      0.49,
+      0.66
+    ],
+    [
+      0.47,
+      0.31
+    ],
+    [
+      0.67,
+      0.48
+    ],
+    [
+      0.34,
+      0.5
+    ],
+    [
+      0.1,
+      0.5
+    ]
+  ],
+  "labels": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

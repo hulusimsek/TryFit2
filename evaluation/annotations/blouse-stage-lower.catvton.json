@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "profile_id": "medium",
+  "image": "runs/protected-outfit-19ded10e/01-top.png",
+  "image_sha256": "98c2f9186e4f44b0c285ff95f6844c99c7f4cb2d58749e4c7559df0ed3a8f48b",
+  "upper_stage_run": "runs/protected-outfit-19ded10e",
+  "upper_product_id": "patterned-blouse",
+  "method": "Researcher-drawn lower envelope below the real saved FASHN blouse stage. Upper V-tip is excluded with a shaped boundary; not automatic masking.",
+  "notes": "Do not regenerate or paste a synthetic blouse. Reuse exact real first-stage pixels. Mask blur can still touch the blouse hem; inspect raw and repaint separately.",
+  "polygon_normalized": [[0.34, 0.39], [0.40, 0.395], [0.48, 0.42], [0.53, 0.42], [0.61, 0.395], [0.66, 0.39], [0.70, 0.55], [0.66, 0.65], [0.65, 0.875], [0.35, 0.875], [0.34, 0.65], [0.30, 0.55]],
+  "exclusion_polygons_normalized": [
+    [[0.285, 0.47], [0.34, 0.48], [0.35, 0.56], [0.31, 0.58], [0.26, 0.54]],
+    [[0.66, 0.48], [0.715, 0.47], [0.74, 0.54], [0.69, 0.58], [0.65, 0.56]]
+  ]
+}

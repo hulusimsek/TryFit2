@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "long-dress",
+  "image": "data/benchmark-10/long-dress.jpg",
+  "image_sha256": "d479918899e895164f2136fa76196a0715ce9bc8dbcf3f1b96bfea6df99c16dc",
+  "category": "one-pieces",
+  "researcher_annotation": true,
+  "notes": "Visible selected garment only, including its belt when applicable. Exclude skin, hair, accessories, footwear and other garment layers. Hidden garment fabric is not reconstructed.",
+  "points_normalized": [
+    [
+      0.5,
+      0.29
+    ],
+    [
+      0.35,
+      0.36
+    ],
+    [
+      0.65,
+      0.41
+    ],
+    [
+      0.43,
+      0.61
+    ],
+    [
+      0.63,
+      0.75
+    ],
+    [
+      0.5,
+      0.81
+    ],
+    [
+      0.45,
+      0.91
+    ],
+    [
+      0.54,
+      0.89
+    ],
+    [
+      0.344,
+      0.486
+    ],
+    [
+      0.34,
+      0.54
+    ],
+    [
+      0.675,
+      0.54
+    ],
+    [
+      0.46,
+      0.18
+    ],
+    [
+      0.1,
+      0.6
+    ]
+  ],
+  "labels": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

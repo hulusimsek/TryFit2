@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "product_id": "811422352",
+  "product_url": "https://www.trendyol.com/swist/siyah-full-pileli-kemerli-astar-sortlu-kadin-mini-etek-p-811422352",
+  "selection_before_inference": true,
+  "excluded_gallery_indices": {
+    "5": "Skirt lifted by hand changes cut/occlusion",
+    "6": "Rear view lacks buckle"
+  },
+  "cases": [
+    {
+      "id": "skirt",
+      "label": "Etek",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/skirt.jpg",
+      "product_url": "https://www.trendyol.com/swist/siyah-full-pileli-kemerli-astar-sortlu-kadin-mini-etek-p-811422352",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1602/prod/QC/20241118/13/410bf519-8e77-3379-86aa-7d7f7b8f57c7/1_org_zoom.jpg",
+      "source_notes": "Mankenli; siyah pileli kemerli mini etek; d\u0131\u015f mek\u00e2n, \u00e7anta ask\u0131s\u0131, \u00e7apraz bacak/poz ve g\u00fcne\u015f g\u00f6zl\u00fc\u011f\u00fc.",
+      "image_sha256": "dcbea6216e1676e515c9e2e72d6e3f303f61a4f9bc4b912711edb6d1138ccad7",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    },
+    {
+      "gallery_index": 3,
+      "image": "data/skirt-gallery-20261111/gallery-3.jpg",
+      "source_image_url": "https://cdn.dsmcdn.com/ty1603/prod/QC/20241118/13/63dd7032-8cae-3007-b6cc-43ec0457d948/1_org_zoom.jpg",
+      "image_sha256": "1bada18070693f35696adc128216d812b176845f8fcf14f7e5a4fe7c8159c882",
+      "product_url": "https://www.trendyol.com/swist/siyah-full-pileli-kemerli-astar-sortlu-kadin-mini-etek-p-811422352",
+      "id": "skirt-gallery-3",
+      "label": "Same skirt gallery 3",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "source_inspected": true,
+      "source_notes": "Research gallery comparison, not a catalog replacement. Same listing verified; real photo provenance not independently authenticated."
+    },
+    {
+      "gallery_index": 4,
+      "image": "data/skirt-gallery-20261111/gallery-4.jpg",
+      "source_image_url": "https://cdn.dsmcdn.com/ty1604/prod/QC/20241118/13/294ad90c-4080-32c3-a4c0-efb1dd26a7e4/1_org_zoom.jpg",
+      "image_sha256": "98a91b72216e62683775cdc2448ac8750305e6efae9c8dc787bae085f0218664",
+      "product_url": "https://www.trendyol.com/swist/siyah-full-pileli-kemerli-astar-sortlu-kadin-mini-etek-p-811422352",
+      "id": "skirt-gallery-4",
+      "label": "Same skirt gallery 4",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "source_inspected": true,
+      "source_notes": "Research gallery comparison, not a catalog replacement. Same listing verified; real photo provenance not independently authenticated."
+    }
+  ]
+}

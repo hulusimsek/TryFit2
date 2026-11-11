@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "person": {
+    "image": "data/first-outfit/avatar-baseline.png",
+    "consent_confirmed": true,
+    "source": "synthetic baseline, not a measured 175/65 body"
+  },
+  "cases": [
+    {
+      "id": "trench-full-coverage-probe",
+      "label": "Trençkot",
+      "category": "one-pieces",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/trench-coat.jpg",
+      "product_url": "https://www.trendyol.com/sateen/kusakli-uzun-trenckot-bej-p-866952143",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1827/prod/QC_ENRICHMENT/20260221/15/06b1ca09-5b3f-37e8-9949-eac29de89b05/1_org_zoom.jpg",
+      "source_notes": "Mankenli; bej uzun kuşaklı trençkot, yakada fular, siyah eldivenler; katman/aksesuar karışması riski. Experimental full-body category probe; not retail taxonomy or validated routing.",
+      "image_sha256": "7ae134fd386231d8dae2c7b23e0bb11a7198a8c22ea52ed636c2e403a327eba9",
+      "source_inspected": true,
+      "listing_ai_generated_label_observed": false
+    }
+  ],
+  "scope": "Tek deneysel kategori karşılaştırması; ana 10 ürünlük kalite hesabından ayrı."
+}

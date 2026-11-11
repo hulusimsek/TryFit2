@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "id": "fitted-dress",
+  "image": "data/benchmark-10/fitted-dress.jpg",
+  "image_sha256": "531f3b7485f2d03983f2fcce1d0700943c815bb68f7575aeeb33a00a8c8e963e",
+  "category": "one-pieces",
+  "researcher_annotation": true,
+  "notes": "Visible selected garment only, including its belt when applicable. Exclude skin, hair, accessories, footwear and other garment layers. Hidden garment fabric is not reconstructed.",
+  "points_normalized": [
+    [
+      0.5,
+      0.29
+    ],
+    [
+      0.45,
+      0.47
+    ],
+    [
+      0.48,
+      0.65
+    ],
+    [
+      0.6,
+      0.24
+    ],
+    [
+      0.37,
+      0.35
+    ],
+    [
+      0.63,
+      0.43
+    ],
+    [
+      0.5,
+      0.13
+    ],
+    [
+      0.39,
+      0.88
+    ],
+    [
+      0.55,
+      0.87
+    ],
+    [
+      0.1,
+      0.5
+    ]
+  ],
+  "labels": [
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "purpose": "Same outfit on three explicit visual presets; not numerical body reconstruction",
+  "continuous_height_weight_mapping": false,
+  "profile_dimensions_scope": "Illustrative test labels only, not measured or calibrated; no BMI or physical fit inference",
+  "profiles": [
+    {
+      "id": "slender",
+      "label": "İnce görünüm",
+      "image": "data/avatar-profiles/slender.png",
+      "image_sha256": "95b320ce1ac53b6bb8f4576c0936220c1e918982dcfa38f1aa3fc91ac3054be5",
+      "height_cm": 165,
+      "weight_kg": 55,
+      "measured": false,
+      "match_precision": "illustrative_visual_preset_not_measured",
+      "source": "Built-in image_gen neutral synthetic target; never an outfit result",
+      "generation_record": "evaluation/annotations/avatar-profile-generation.json"
+    },
+    {
+      "id": "medium",
+      "label": "Orta görünüm",
+      "image": "data/first-outfit/avatar-baseline.png",
+      "image_sha256": "faae31c77da58da8944ef283bea49fadd581eed923f99900aeca89e4be8c751b",
+      "height_cm": 175,
+      "weight_kg": 65,
+      "measured": false,
+      "match_precision": "illustrative_visual_preset_not_measured",
+      "source": "Built-in image_gen neutral synthetic target; never an outfit result",
+      "generation_record": "docs/avatar-baseline.md"
+    },
+    {
+      "id": "fuller",
+      "label": "Dolgun görünüm",
+      "image": "data/avatar-profiles/fuller.png",
+      "image_sha256": "1bee860fb91a63bacf10d9a5463963bf6eb3fb4d2e427408e37a546dfa28b460",
+      "height_cm": 185,
+      "weight_kg": 90,
+      "measured": false,
+      "match_precision": "illustrative_visual_preset_not_measured",
+      "source": "Built-in image_gen neutral synthetic target; never an outfit result",
+      "generation_record": "evaluation/annotations/avatar-profile-generation.json"
+    }
+  ]
+}

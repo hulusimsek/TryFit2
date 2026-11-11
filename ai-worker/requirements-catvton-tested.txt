@@ -1,0 +1,15 @@
+# Observed Python 3.12 / Windows / RTX 4060 Ti environment.
+# Install torch/torchvision CUDA wheels from https://download.pytorch.org/whl/cu126
+# CatVTON code: vendor/CatVTON pinned to 7818397f25613beedb3d861a34769f607cfcf3b1.
+# Our .venv-catvton uses its own versions below and shares PyTorch via a .pth
+# pointing to .venv/Lib/site-packages; the working FASHN environment is unchanged.
+torch==2.6.0+cu126
+torchvision==0.21.0+cu126
+diffusers==0.29.2
+accelerate==0.31.0
+huggingface-hub==0.25.2
+transformers==4.44.2
+tokenizers==0.19.1
+numpy==2.2.6
+pillow==13.0.0
+safetensors==0.8.0

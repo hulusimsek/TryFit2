@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "image": "data/waist-control/short-top.png",
+  "image_sha256": "a46dc2610aa705f14ca1c291fda29d119bccb49ba46725585a87126be34993d6",
+  "method": "Researcher-drawn lower-body envelope; only the two top vertices moved upward from 0.383 to 0.365 relative to short-top-lower.catvton.json",
+  "notes": "Controlled boundary follow-up on original skirt source: remove residual grey reference waistband. Same target, condition, source mask, seed and sampler. Hand exclusions and all other vertices unchanged. Midriff boundary and raw anatomy require visual review.",
+  "polygon_normalized": [[0.35, 0.365], [0.65, 0.365], [0.69, 0.55], [0.66, 0.64], [0.65, 0.872], [0.35, 0.872], [0.34, 0.64], [0.31, 0.55]],
+  "exclusion_polygons_normalized": [
+    [[0.285, 0.47], [0.34, 0.48], [0.35, 0.56], [0.31, 0.58], [0.26, 0.54]],
+    [[0.66, 0.48], [0.715, 0.47], [0.74, 0.54], [0.69, 0.58], [0.65, 0.56]]
+  ]
+}

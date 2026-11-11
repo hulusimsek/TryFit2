@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="tr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#244b3e"><title>TryFit Next · Kombin denemesi</title><link rel="stylesheet" href="/style.css?v=skirt-20261111"><script src="/app.js?v=skirt-20261111" defer></script></head>
+<body>
+<header class="bar"><a class="brand" href="/" aria-label="TryFit Next ana sayfa"><span class="brand-mark">t.</span>tryfit<span class="next">next</span></a><span class="local"><i></i> Bu cihazda çalışır</span></header>
+<main>
+<section class="intro"><div><span class="eyebrow">SANAL KOMBİN DENEMESİ</span><h1>Parçaları seç.<br><em>Birlikte gör.</em></h1><p>Bir görsel profil, bir üst ve bir alt parça seç.<br>Yeni kombinini gerçek bir üretimle görüntüle.</p></div><div class="scope"><span>İLK YEREL SÜRÜM</span><p>Seçilmiş 4 ürün · 3 hazır profil</p><small>Yeni ürün bağlantısı ekleme henüz yok.</small></div></section>
+<div class="workspace">
+<form id="tryon-form" class="controls">
+<section class="panel"><div class="section-heading"><span class="step">01</span><div><h2>Görsel profilin</h2><p>Yaklaşık görünümünü seç.</p></div></div><div id="profiles" class="profiles" role="radiogroup" aria-label="Görsel profil"></div><p class="fine">Bunlar sentetik örneklerdir. Boy/kilodan hesaplanmış veya ölçülmüş beden modelleri değildir.</p></section>
+<section class="panel garments"><div class="section-heading"><span class="step">02</span><div><h2>Kombinin</h2><p>Aynı görselde iki parça.</p></div></div><div class="product-grid">
+<div class="product"><label for="top">Üst parça</label><select id="top" name="top" required disabled></select><div class="product-photo"><img id="top-photo" alt="Seçilen üst ürünün kaynak görseli"></div><a id="top-source" class="source" target="_blank" rel="noopener noreferrer">Trendyol'da ürünü gör ↗</a></div>
+<div class="product"><label for="bottom">Alt parça</label><select id="bottom" name="bottom" required disabled></select><div class="product-photo"><img id="bottom-photo" alt="Seçilen alt ürünün kaynak görseli"></div><a id="bottom-source" class="source" target="_blank" rel="noopener noreferrer">Trendyol'da ürünü gör ↗</a></div>
+</div><div id="skirt-style" hidden><label class="tuck-option"><input id="tuck-top" type="checkbox" checked> Üstü eteğin içine al</label><p class="fine">Üstün etek ucu içeri alınarak üretilir. Üst dışarıda bırakılırsa kemeri örtebilir.</p></div><p class="fine" id="source-note">Kaynak ürün fotoğrafları kullanılır.</p></section>
+<div class="action"><button id="generate" class="primary" type="submit" disabled><span>Kombini dene</span><span aria-hidden="true">↗</span></button><p>Üretim yaklaşık 1–2 dakika sürebilir.</p></div>
+</form>
+<section class="result-panel" aria-labelledby="result-title"><div class="result-heading"><div><span class="eyebrow">ÖNİZLEMEN</span><h2 id="result-title">Kombinin burada.</h2></div><a id="download" class="download" hidden download="tryfit-kombin.png">Görseli indir ↓</a></div>
+<div class="result-stage" id="result-stage"><div id="empty" class="empty"><svg viewBox="0 0 150 125" width="140" height="116" aria-hidden="true"><path d="M65 32a13 13 0 1 1 20 11c-6 4-10 6-10 14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m75 57-57 35q-7 5 2 5h110q9 0 2-5L75 57Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg><strong>Birlikte nasıl görünecek?</strong><p>Soldan seçimlerini yap ve<br>“Kombini dene”ye bas.</p></div><img id="result-image" class="result-image" alt="Seçtiğin parçalarla yeni üretilen kombin" hidden><div id="busy" class="busy" hidden><span class="spinner" aria-hidden="true"></span><strong id="busy-stage">Model hazırlanıyor</strong><p>Bu görsel senin seçimin için üretiliyor.</p></div></div>
+<div class="status-row"><span id="state-dot" class="state-dot"></span><p id="status" role="status" aria-live="polite">Yerel katalog yükleniyor…</p><span id="elapsed"></span></div>
+<div class="comparison" id="comparison" hidden><span>BAŞLANGIÇ PROFİLİ</span><img id="before-image" alt="Üretim öncesindeki seçilmiş sentetik profil"><p>Kaynak profili ve yeni kombini karşılaştır. Kıyafet ayrıntıları değişebilir.</p></div>
+<p class="result-note">Görsel bir araştırma önizlemesidir. Ürün bedeni, kumaş fiziği ve gerçek oturuş hesaplanmaz.</p>
+</section>
+</div>
+<footer><span>TryFit Next / Yerel araştırma denemesi</span><span>Görsel sonuçlar, gerçek beden uyumu garantisi vermez.</span></footer>
+</main>
+</body></html>

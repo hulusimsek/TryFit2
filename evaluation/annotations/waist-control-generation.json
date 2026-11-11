@@ -1,0 +1,15 @@
+{
+  "generator": "built-in image_gen",
+  "purpose": "Synthetic neutral short-top control target, never a try-on result",
+  "edit_target": "data/first-outfit/avatar-baseline.png",
+  "output": "data/waist-control/short-top.png",
+  "output_sha256": "a46dc2610aa705f14ca1c291fda29d119bccb49ba46725585a87126be34993d6",
+  "edit_target_sha256": "faae31c77da58da8944ef283bea49fadd581eed923f99900aeca89e4be8c751b",
+  "prompt": "Use case: identity-preserve. Asset type: synthetic control target for a local virtual try-on research experiment, NOT a try-on result. Input image is the EDIT TARGET, a fictional adult woman in grey T-shirt and grey leggings. Change ONLY the plain light grey T-shirt to a plain fitted short sleeve light grey cropped T-shirt ending 6 cm above the waistband, leaving a clearly visible narrow band of abdomen and the full leggings waistband. Keep the exact same adult identity, face, hair, pose, body proportions, arms, hands, legs, bare feet, leggings, framing, seamless grey studio background and lighting. Full body head to toes with same margins, realistic e-commerce photograph. No skirt, no belt, no buckle, no new garment designs, no accessories, no text. This image is only a neutral starting person; do not depict any desired final outfit.",
+  "limits": [
+    "No measured body reconstruction",
+    "Generative edit can alter pixels beyond the requested top; not a strictly identical-body single-variable target",
+    "No skirt, belt or buckle supplied to imagegen",
+    "Original target retained; not added to local catalog"
+  ]
+}

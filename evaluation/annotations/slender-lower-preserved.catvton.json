@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "profile_id": "slender",
+  "image": "data/avatar-profiles/slender.png",
+  "image_sha256": "95b320ce1ac53b6bb8f4576c0936220c1e918982dcfa38f1aa3fc91ac3054be5",
+  "method": "Same original slender edit envelope with only strict parser-based preservation added.",
+  "notes": "Long original top may cover belt. Evaluate top hem and hand/foot preservation; do not score hidden buckle as visible-detail success. Blur can change boundary pixels.",
+  "polygon_normalized": [
+    [
+      0.35,
+      0.438
+    ],
+    [
+      0.65,
+      0.438
+    ],
+    [
+      0.69,
+      0.56
+    ],
+    [
+      0.64,
+      0.65
+    ],
+    [
+      0.64,
+      0.875
+    ],
+    [
+      0.36,
+      0.875
+    ],
+    [
+      0.36,
+      0.65
+    ],
+    [
+      0.31,
+      0.56
+    ]
+  ],
+  "exclusion_polygons_normalized": [
+    [
+      [
+        0.28,
+        0.475
+      ],
+      [
+        0.34,
+        0.48
+      ],
+      [
+        0.35,
+        0.565
+      ],
+      [
+        0.31,
+        0.585
+      ],
+      [
+        0.26,
+        0.54
+      ]
+    ],
+    [
+      [
+        0.66,
+        0.48
+      ],
+      [
+        0.72,
+        0.475
+      ],
+      [
+        0.74,
+        0.54
+      ],
+      [
+        0.69,
+        0.585
+      ],
+      [
+        0.65,
+        0.565
+      ]
+    ]
+  ],
+  "preserve_mask_image": "runs/catvton-profile-suite-a33ae897/slender-lower-preserve.png",
+  "preserve_mask_sha256": "5bd5031ee5a3b349e05121229d8afbdf3707e456bcfbd1cebf844412dc700057",
+  "preserve_mask_target_sha256": "95b320ce1ac53b6bb8f4576c0936220c1e918982dcfa38f1aa3fc91ac3054be5",
+  "preservation_source": "Real FASHN human-parser labels 1,2,3,12,13,15,16 on this exact target; CPU preparation; masks are not measured body reconstruction",
+  "parent_annotation": "evaluation/annotations/slender-lower.catvton.json"
+}

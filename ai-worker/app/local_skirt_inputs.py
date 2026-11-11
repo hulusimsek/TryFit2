@@ -17,7 +17,8 @@ def skirt_inputs(labels, *, tuck_top=False):
     padding=max(3,round(height*.02))
     start=max(0,min(int(ys.min()),cut if tuck_top else int(top_y.max()))-round(height*.045))
     garments=np.where(np.isin(labels,[5,6,7]))[0]
-    end=min(height-1,int(garments.max() if len(garments) else ys.max())+max(2,round(height*.005)))
+    feet_y=np.where(labels==15)[0]
+    end=min(height-1,max(int(garments.max() if len(garments) else ys.max()),int(feet_y.min()))+max(2,round(height*.005)))
     waist=cut if tuck_top else int(top_y.max())
     hip=min(end-1,waist+round(height*.13))
     knee=min(end-1,waist+round(height*.27))
@@ -29,13 +30,19 @@ def skirt_inputs(labels, *, tuck_top=False):
     points=[(int(xs.min()),start),(int(xs.max()),start),(right,hip),(bottom_right,knee),
             (bottom_right,end),(bottom_left,end),(bottom_left,knee),(left,hip)]
     # Background is editable only in a bounded expansion near the mini-skirt.
-    # Calf/hand surroundings remain the actual target floor rather than generated texture.
     distance=cv2.distanceTransform((~lower).astype('uint8'),cv2.DIST_L2,5)
     outward=np.clip((padding-distance)/max(1,padding*.65),0,1)
     rows=np.indices(labels.shape)[0]
     vertical=np.clip((waist+height*.27-rows)/max(1,height*.06),0,1)
+    feet_distance=cv2.distanceTransform((labels!=15).astype('uint8'),cv2.DIST_L2,5)
+    feet_fade=np.clip(feet_distance/max(4,round(height*.008)),0,1)
     background_alpha=np.ones(labels.shape,dtype='float32')
     background_alpha[labels==0]=(outward*vertical)[labels==0]
+    background_alpha*=feet_fade
+    if tuck_top:
+        # Feather downward from the tuck cut so VAE tone shifts in repaint do not form a hard horizontal bar.
+        tuck_fade=np.clip((rows-cut)/max(4,round(height*.007)),0,1)
+        background_alpha*=np.where(top | (labels==0),tuck_fade,1)
     annotation={'polygon_normalized':[[x/(width-1),y/(height-1)] for x,y in points],
         'method':'Runtime real target parsing; skirt envelope; explicit preservation applied after mask blur',
         'tuck_top':tuck_top,'tuck_cut_row':cut if tuck_top else None,

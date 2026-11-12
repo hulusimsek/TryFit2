@@ -1323,7 +1323,7 @@ class SyntheticTechPilotTests(unittest.TestCase):
 
     def test_single_case_invalid_or_ambiguous_selectors_rejected(self):
         before_runs = set((self.root / "runs").glob("pilot-*"))
-        for bad_case in ("", "   ", "slender", "nonexistent__top", "slender__skirt-tucked", "medium__skirt-untucked"):
+        for bad_case in ("", "   ", "slender", "nonexistent__top", "slender__trousers", "medium__unknown"):
             with self.assertRaises(ValueError):
                 pilot_runner.run_pilot(
                     self.root,
@@ -1333,15 +1333,22 @@ class SyntheticTechPilotTests(unittest.TestCase):
                     fashn_factory=lambda _r, _p: FakeFashnPipeline(),
                     catvton_runner=_fake_catvton_synthetic_success,
                 )
-        # --case without --synthetic-tech must fail and leave real pilot behavior untouched.
+        # --case without --synthetic-tech must fail for both top_only and top_plus_skirt and leave real pilot untouched.
+        for real_case in ("pilot-target-1__top", "pilot-target-1__skirt-tucked"):
+            with self.assertRaises(ValueError):
+                pilot_runner.run_pilot(
+                    self.root,
+                    self.real_manifest_path,
+                    synthetic_tech=False,
+                    case_id=real_case,
+                    fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                    catvton_runner=_fake_catvton_success,
+                )
+        # Disallowed flow_type in expanded cases (e.g. top_plus_trousers) must be rejected by selector.
         with self.assertRaises(ValueError):
-            pilot_runner.run_pilot(
-                self.root,
-                self.real_manifest_path,
-                synthetic_tech=False,
-                case_id="pilot-target-1__top",
-                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
-                catvton_runner=_fake_catvton_success,
+            pilot_runner._select_single_case(
+                [{"id": "slender__trousers", "flow_type": "top_plus_trousers"}],
+                "slender__trousers",
             )
         # Duplicate case IDs in expanded list must raise ambiguity error.
         with self.assertRaises(ValueError):
@@ -1361,6 +1368,246 @@ class SyntheticTechPilotTests(unittest.TestCase):
             ),
             1,
         )
+
+    def test_single_case_slender_skirt_tucked_and_untucked_run_both_phases_for_selected_only(self):
+        for case_selector, expected_flow_id, expected_tuck in (
+            ("slender__skirt-tucked", "skirt-tucked", True),
+            ("slender__skirt-untucked", "skirt-untucked", False),
+        ):
+            fake_fashn = FakeFashnPipeline()
+            catvton_case_dirs = []
+
+            def spy_skirt_lower(case_dir):
+                catvton_case_dirs.append(case_dir.name)
+                _fake_catvton_outcome(case_dir)
+
+            run_dir = pilot_runner.run_pilot(
+                self.root,
+                self.manifest_path,
+                synthetic_tech=True,
+                case_id=case_selector,
+                fashn_factory=lambda _r, _p: fake_fashn,
+                catvton_runner=lambda r, d: pilot_runner.run_catvton_lower(
+                    r, d, skirt_lower_fn=spy_skirt_lower, synthetic_tech=True
+                ),
+            )
+
+            # Exactly 1 FASHN call and 1 CatVTON call for the single selected case only; other 7+ cases untouched.
+            self.assertEqual(len(fake_fashn.calls), 1)
+            self.assertEqual(fake_fashn.calls[0]["category"], "tops")
+            self.assertEqual(catvton_case_dirs, [case_selector])
+
+            preflight = json.loads((run_dir / "parsing-preflight.json").read_text(encoding="utf-8"))
+            self.assertEqual(set(preflight.keys()), {"slender"})
+            self.assertEqual([p.name for p in (run_dir / "cases").iterdir()], [case_selector])
+
+            summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "completed")
+            self.assertEqual(summary["counts"], {"completed": 1})
+            self.assertIs(summary["single_case_mode"], True)
+            self.assertEqual(summary["execution_mode"], "single_case_fashn_and_catvton")
+            self.assertEqual(summary["selected_case_id"], case_selector)
+            self.assertEqual(summary["selected_target_id"], "slender")
+            self.assertEqual(summary["selected_flow_id"], expected_flow_id)
+            self.assertEqual(summary["selected_product_id"], "tshirt")
+            self.assertEqual(summary["selected_bottom_id"], "skirt")
+            self.assertIs(summary["tuck_top"], expected_tuck)
+            self.assertIs(summary["fashn_only"], False)
+            self.assertIs(summary["fashn_executed"], True)
+            self.assertIs(summary["catvton_executed"], True)
+            self.assertIs(summary["catvton_skipped"], False)
+            self.assertEqual(summary["pilot_mode"], "synthetic_technical_rehearsal")
+            self.assertIs(summary["generalization_evidence"], False)
+            self.assertEqual(summary["settings"]["catvton"], {"steps": 50, "guidance": 2.5, "seed": 42})
+
+            self.assertEqual(len(summary["cases"]), 1)
+            case = summary["cases"][0]
+            self.assertEqual(case["id"], case_selector)
+            self.assertEqual(case["target_id"], "slender")
+            self.assertEqual(case["flow_id"], expected_flow_id)
+            self.assertEqual(case["flow_type"], "top_plus_skirt")
+            self.assertIs(case["tuck_top"], expected_tuck)
+            self.assertIs(case["single_case_mode"], True)
+            self.assertEqual(case["execution_mode"], "single_case_fashn_and_catvton")
+            self.assertIs(case["fashn_executed"], True)
+            self.assertIs(case["catvton_executed"], True)
+            self.assertIs(case["catvton_skipped"], False)
+
+            case_dir = run_dir / "cases" / case_selector
+            for expected_file in (
+                "01-top.png",
+                "skirt-handoff.json",
+                "02-skirt-raw.png",
+                "02-skirt-repaint.png",
+                "catvton-outcome.json",
+                "result.png",
+                "comparison.jpg",
+            ):
+                self.assertTrue((case_dir / expected_file).is_file(), f"Missing {expected_file}")
+
+            handoff = json.loads((case_dir / "skirt-handoff.json").read_text(encoding="utf-8"))
+            self.assertEqual(bool(handoff["annotation"]["tuck_top"]), expected_tuck)
+
+            selection = json.loads((case_dir / "selection.json").read_text(encoding="utf-8"))
+            self.assertEqual(selection["target"]["id"], "slender")
+            self.assertEqual([item["id"] for item in selection["items"]], ["tshirt", "skirt"])
+            self.assertEqual(selection["flow_type"], "top_plus_skirt")
+            self.assertIs(selection["tuck_top"], expected_tuck)
+            self.assertIs(selection["single_case_mode"], True)
+            self.assertEqual(selection["execution_mode"], "single_case_fashn_and_catvton")
+            self.assertEqual(selection["selected_case_id"], case_selector)
+            self.assertIs(selection["fashn_executed"], True)
+            self.assertIs(selection["catvton_executed"], True)
+            self.assertIs(selection["catvton_skipped"], False)
+            self.assertIs(selection["generalization_evidence"], False)
+
+            with (run_dir / "review-template.csv").open("r", newline="", encoding="utf-8") as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(row["id"], case_selector)
+            self.assertEqual(row["case_status"], "completed")
+            self.assertEqual(row["tuck_top"], str(expected_tuck).lower())
+            self.assertEqual(row["pilot_mode"], "synthetic_technical_rehearsal")
+            self.assertEqual(row["generalization_evidence"], "false")
+            for token in (
+                "single_case_mode=true",
+                "execution_mode=single_case_fashn_and_catvton",
+                f"selected_case_id={case_selector}",
+                "fashn_executed=true",
+                "catvton_executed=true",
+                "catvton_skipped=false",
+                "generalization_evidence=false",
+            ):
+                self.assertIn(token, row["notes"])
+
+    def test_single_case_skirt_subprocess_venvs_and_mode_guards(self):
+        recorded_cmds = []
+        fashn_venv = self.root / ".venv/Scripts/python.exe"
+        catvton_venv = self.root / ".venv-catvton/Scripts/python.exe"
+
+        def fake_venv_resolver(root, venv_name):
+            return fashn_venv if venv_name == ".venv" else catvton_venv
+
+        def fake_subprocess(cmd, check=True, cwd=None):
+            recorded_cmds.append(list(cmd))
+            if "fashn-phase" in cmd:
+                pilot_runner.run_fashn_phase(
+                    self.root,
+                    cmd[cmd.index("--run-dir") + 1],
+                    fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                    synthetic_tech=("--synthetic-tech" in cmd),
+                )
+            elif "catvton-lower" in cmd:
+                pilot_runner.run_catvton_lower(
+                    self.root,
+                    cmd[cmd.index("--run-dir") + 1],
+                    skirt_lower_fn=_fake_catvton_outcome,
+                    synthetic_tech=("--synthetic-tech" in cmd),
+                )
+
+        with patch.object(pilot_runner, "_require_venv_python", side_effect=fake_venv_resolver):
+            run_dir = pilot_runner.run_pilot(
+                self.root,
+                self.manifest_path,
+                synthetic_tech=True,
+                case_id="slender__skirt-tucked",
+                run_phase1_in_subprocess=True,
+                subprocess_runner=fake_subprocess,
+            )
+
+        self.assertEqual(len(recorded_cmds), 2)
+        self.assertEqual(Path(recorded_cmds[0][0]), fashn_venv)
+        self.assertIn("fashn-phase", recorded_cmds[0])
+        self.assertIn("--synthetic-tech", recorded_cmds[0])
+        self.assertEqual(Path(recorded_cmds[1][0]), catvton_venv)
+        self.assertIn("catvton-lower", recorded_cmds[1])
+        self.assertIn("--synthetic-tech", recorded_cmds[1])
+
+        # Cross-mode calls must still be refused for single-case skirt run_dir.
+        with self.assertRaises(ValueError):
+            pilot_runner.run_fashn_phase(
+                self.root,
+                run_dir,
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                synthetic_tech=False,
+            )
+        with self.assertRaises(ValueError):
+            pilot_runner.run_catvton_lower(
+                self.root,
+                run_dir,
+                skirt_lower_fn=_fake_catvton_outcome,
+                synthetic_tech=False,
+            )
+
+        # Tampering execution_mode or catvton_skipped in pilot-summary.json must be rejected.
+        summary_path = run_dir / "pilot-summary.json"
+        orig_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        for bad_patch in (
+            {"execution_mode": "single_case_fashn_only"},
+            {"catvton_skipped": True},
+        ):
+            tampered = dict(orig_summary, **bad_patch)
+            summary_path.write_text(json.dumps(tampered), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                pilot_runner.run_fashn_phase(
+                    self.root,
+                    run_dir,
+                    fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                    synthetic_tech=True,
+                )
+            with self.assertRaises(ValueError):
+                pilot_runner.run_catvton_lower(
+                    self.root,
+                    run_dir,
+                    skirt_lower_fn=_fake_catvton_outcome,
+                    synthetic_tech=True,
+                )
+
+    def test_single_case_skirt_skips_catvton_when_fashn_fails_or_parse_blocked(self):
+        # Case 1: FASHN fails with exception -> CatVTON must NOT run.
+        catvton_calls = []
+
+        class FailingFashnPipeline(FakeFashnPipeline):
+            def __call__(self, **kwargs):
+                raise RuntimeError("FASHN failure")
+
+        run_dir_fail = pilot_runner.run_pilot(
+            self.root,
+            self.manifest_path,
+            synthetic_tech=True,
+            case_id="slender__skirt-tucked",
+            fashn_factory=lambda _r, _p: FailingFashnPipeline(),
+            catvton_runner=lambda r, d: catvton_calls.append((r, d)),
+        )
+        self.assertEqual(catvton_calls, [])
+        fail_summary = json.loads((run_dir_fail / "pilot-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(fail_summary["status"], "failed")
+        self.assertIs(fail_summary["fashn_executed"], False)
+        self.assertIs(fail_summary["catvton_executed"], False)
+        self.assertEqual(fail_summary["cases"][0]["status"], "failed")
+        self.assertFalse((run_dir_fail / "cases" / "slender__skirt-tucked" / "result.png").exists())
+
+        # Case 2: Post-top parsing blocks skirt preparation -> CatVTON must NOT run.
+        partial_parser = FakeFashnPipeline(
+            target_labels_by_sha={(211, 100, 100): _no_feet_labels},
+            top_tag_override={(210, 100, 100): (211, 100, 100)},
+        )
+        run_dir_blocked = pilot_runner.run_pilot(
+            self.root,
+            self.manifest_path,
+            synthetic_tech=True,
+            case_id="slender__skirt-untucked",
+            fashn_factory=lambda _r, _p: partial_parser,
+            catvton_runner=lambda r, d: catvton_calls.append((r, d)),
+        )
+        self.assertEqual(catvton_calls, [])
+        blocked_summary = json.loads((run_dir_blocked / "pilot-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(blocked_summary["status"], "completed_with_parse_blocks")
+        self.assertIs(blocked_summary["fashn_executed"], True)
+        self.assertIs(blocked_summary["catvton_executed"], False)
+        self.assertEqual(blocked_summary["cases"][0]["status"], "parse_blocked")
+        self.assertFalse((run_dir_blocked / "cases" / "slender__skirt-untucked" / "result.png").exists())
 
 
 if __name__ == "__main__":

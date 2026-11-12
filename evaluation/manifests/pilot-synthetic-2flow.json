@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "manifest_kind": "synthetic_technical_pilot",
+  "purpose": "Isolated synthetic 2-flow technical pipeline rehearsal (top_only, top_plus_skirt tucked/untucked) across three synthetic visual presets; never real-human quality or generalization evidence",
+  "generalization_evidence": false,
+  "same_base_identity": true,
+  "effective_subject_diversity": 1,
+  "derived_from_baseline": "data/first-outfit/avatar-baseline.png",
+  "included_flows": [
+    "top_only",
+    "top_plus_skirt"
+  ],
+  "excluded_flows": [
+    "top_plus_trousers"
+  ],
+  "targets": [
+    {
+      "id": "slender",
+      "body_group": "slender",
+      "target_origin": "synthetic_visual_preset",
+      "derived_from_base_image": "data/first-outfit/avatar-baseline.png",
+      "generation_record": "evaluation/annotations/avatar-profile-generation.json",
+      "image": "data/avatar-profiles/slender.png",
+      "image_sha256": "95b320ce1ac53b6bb8f4576c0936220c1e918982dcfa38f1aa3fc91ac3054be5",
+      "measured": false,
+      "pose_notes": "Synthetic frontal standing full-body studio pose derived from avatar-baseline.png; arms separated from torso, visible open hands",
+      "footwear_notes": "Bare feet flat on neutral pale grey studio floor",
+      "current_clothing_notes": "Plain fitted light-grey short-sleeve crewneck T-shirt and medium-grey ankle-length leggings",
+      "lighting_background_notes": "Uniform pale grey seamless studio background with soft even lighting"
+    },
+    {
+      "id": "medium",
+      "body_group": "medium",
+      "target_origin": "synthetic_visual_preset",
+      "derived_from_base_image": "data/first-outfit/avatar-baseline.png",
+      "generation_record": "docs/avatar-baseline.md",
+      "image": "data/first-outfit/avatar-baseline.png",
+      "image_sha256": "faae31c77da58da8944ef283bea49fadd581eed923f99900aeca89e4be8c751b",
+      "measured": false,
+      "pose_notes": "Synthetic frontal standing full-body studio base pose; arms separated from torso, visible open hands",
+      "footwear_notes": "Bare feet flat on neutral pale grey studio floor",
+      "current_clothing_notes": "Plain fitted light-grey short-sleeve crewneck T-shirt and medium-grey ankle-length leggings",
+      "lighting_background_notes": "Uniform pale grey seamless studio background with soft even lighting"
+    },
+    {
+      "id": "fuller",
+      "body_group": "fuller",
+      "target_origin": "synthetic_visual_preset",
+      "derived_from_base_image": "data/first-outfit/avatar-baseline.png",
+      "generation_record": "evaluation/annotations/avatar-profile-generation.json",
+      "image": "data/avatar-profiles/fuller.png",
+      "image_sha256": "1bee860fb91a63bacf10d9a5463963bf6eb3fb4d2e427408e37a546dfa28b460",
+      "measured": false,
+      "pose_notes": "Synthetic frontal standing full-body studio pose derived from avatar-baseline.png; arms separated from torso, visible open hands",
+      "footwear_notes": "Bare feet flat on neutral pale grey studio floor",
+      "current_clothing_notes": "Plain fitted light-grey short-sleeve crewneck T-shirt and medium-grey ankle-length leggings",
+      "lighting_background_notes": "Uniform pale grey seamless studio background with soft even lighting"
+    }
+  ],
+  "products": [
+    {
+      "id": "tshirt",
+      "label": "Tişört",
+      "flow_role": "top",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/tshirt.jpg",
+      "image_sha256": "a23cf6dd4abc1e62bdc35a8f76e6d948826635a1b6f7d0f85065e2d4c2dc641c",
+      "product_url": "https://www.trendyol.com/dilvin/3683-basic-t-shirt-siyah-p-87044322",
+      "source_image_url": "https://cdn.dsmcdn.com/ty1855/prod/QC_ENRICHMENT/20260415/00/17dfe667-93b1-34a0-abed-5abcb1d04754/1_org_zoom.jpg",
+      "photo_origin": "real_model_photo",
+      "listing_ai_generated_label_observed": false,
+      "source_notes": "Mankenli; siyah kısa kollu basic tişört, tek el belde/cepte; önden hafif açılı."
+    },
+    {
+      "id": "skirt",
+      "label": "Etek",
+      "flow_role": "skirt",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "image": "data/benchmark-10/skirt.jpg",
+      "image_sha256": "dcbea6216e1676e515c9e2e72d6e3f303f61a4f9bc4b912711edb6d1138ccad7",
+      "product_url": "https://www.trendyol.com/swist/siyah-full-pileli-kemerli-astar-sortlu-kadin-mini-etek-p-811422352",
+      "source_image_url": "https://cdn.dsmcdn.com/mnresize/620/920/ty1602/prod/QC/20241118/13/410bf519-8e77-3379-86aa-7d7f7b8f57c7/1_org_zoom.jpg",
+      "photo_origin": "real_model_photo",
+      "listing_ai_generated_label_observed": false,
+      "source_notes": "Mankenli; siyah pileli kemerli mini etek; dış mekân, çanta askısı, çapraz bacak/poz ve güneş gözlüğü."
+    }
+  ],
+  "flows": [
+    {
+      "id": "top",
+      "flow_type": "top_only",
+      "top_id": "tshirt"
+    },
+    {
+      "id": "skirt-tucked",
+      "flow_type": "top_plus_skirt",
+      "top_id": "tshirt",
+      "bottom_id": "skirt",
+      "tuck_top": true
+    },
+    {
+      "id": "skirt-untucked",
+      "flow_type": "top_plus_skirt",
+      "top_id": "tshirt",
+      "bottom_id": "skirt",
+      "tuck_top": false
+    }
+  ]
+}

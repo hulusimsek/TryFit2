@@ -33,6 +33,24 @@ ALLOWED_CONSENT_SCOPE = "closed_local_rnd_pilot_only"
 ALLOWED_FLOW_ROLES = {"top": "tops", "trousers": "bottoms", "skirt": "bottoms"}
 ALLOWED_FLOW_TYPES = {"top_only", "top_plus_trousers", "top_plus_skirt"}
 REQUIRED_CORE_FLOWS = {("top_only", None), ("top_plus_trousers", False), ("top_plus_skirt", True)}
+SYNTHETIC_MANIFEST_KIND = "synthetic_technical_pilot"
+SYNTHETIC_PILOT_MODE = "synthetic_technical_rehearsal"
+SYNTHETIC_TARGET_ORIGIN = "synthetic_visual_preset"
+REAL_CONSENT_FORBIDDEN_FIELDS = (
+    "adult_confirmed",
+    "consent_confirmed",
+    "consent_record_id",
+    "consent_scope",
+    "retention_until",
+)
+SYNTHETIC_FLOW_ROLES = {"top", "skirt"}
+SYNTHETIC_FLOW_SIGNATURES = {
+    ("top_only", None),
+    ("top_plus_skirt", True),
+    ("top_plus_skirt", False),
+}
+SYNTHETIC_INCLUDED_FLOWS = ["top_only", "top_plus_skirt"]
+SYNTHETIC_EXCLUDED_FLOWS = ["top_plus_trousers"]
 REEXEC_ENV_VAR = "TRYFIT_PILOT_REEXEC"
 PARSING_ERROR_PATTERNS = (
     "no upper garment to preserve",
@@ -65,6 +83,21 @@ PILOT_REVIEW_COLUMNS = [
     "target_id",
     "flow_id",
     "tuck_top",
+    "case_status",
+    "reviewer",
+    *METRICS,
+    *PILOT_EXTRA_METRICS,
+    "untargeted_changes",
+    "critical_failure",
+    "notes",
+]
+SYNTHETIC_REVIEW_COLUMNS = [
+    "id",
+    "target_id",
+    "flow_id",
+    "tuck_top",
+    "pilot_mode",
+    "generalization_evidence",
     "case_status",
     "reviewer",
     *METRICS,
@@ -109,8 +142,21 @@ def _require_valid_image(root, entry, kind):
     return path, digest
 
 
+def _validate_target_common(root, target, identifier):
+    if target.get("body_group") not in ALLOWED_BODY_GROUPS:
+        raise ValueError(f"Target {identifier}: body_group must be one of {sorted(ALLOWED_BODY_GROUPS)}.")
+    if target.get("measured") is not False:
+        raise ValueError(f"Target {identifier}: measured must be false.")
+    for field in ("pose_notes", "footwear_notes", "current_clothing_notes", "lighting_background_notes"):
+        _require_nonempty_text(target.get(field), f"Target {identifier}: {field} is required.")
+    _, digest = _require_valid_image(root, target, f"Target {identifier}")
+    return digest
+
+
 def _validate_target(root, target):
     identifier = _require_safe_id(target.get("id"), "target")
+    if target.get("target_origin") == SYNTHETIC_TARGET_ORIGIN:
+        raise ValueError(f"Target {identifier}: synthetic preset targets cannot be used in real-person pilot.")
     if target.get("adult_confirmed") is not True:
         raise ValueError(f"Target {identifier}: adult_confirmed must be true.")
     if target.get("consent_confirmed") is not True:
@@ -127,14 +173,31 @@ def _validate_target(root, target):
         raise ValueError(f"Target {identifier}: retention_until must be ISO YYYY-MM-DD.") from error
     if retention_date < date.today():
         raise ValueError(f"Target {identifier}: retention_until {retention} has expired.")
-    if target.get("body_group") not in ALLOWED_BODY_GROUPS:
-        raise ValueError(f"Target {identifier}: body_group must be one of {sorted(ALLOWED_BODY_GROUPS)}.")
-    if target.get("measured") is not False:
-        raise ValueError(f"Target {identifier}: measured must be false.")
-    for field in ("pose_notes", "footwear_notes", "current_clothing_notes", "lighting_background_notes"):
-        _require_nonempty_text(target.get(field), f"Target {identifier}: {field} is required.")
-    _, digest = _require_valid_image(root, target, f"Target {identifier}")
-    return digest
+    return _validate_target_common(root, target, identifier)
+
+
+def _validate_synthetic_target(root, target, baseline_path):
+    identifier = _require_safe_id(target.get("id"), "target")
+    for forbidden in REAL_CONSENT_FORBIDDEN_FIELDS:
+        if forbidden in target:
+            raise ValueError(
+                f"Synthetic target {identifier}: real consent field {forbidden!r} must not be populated on synthetic avatars."
+            )
+    if target.get("target_origin") != SYNTHETIC_TARGET_ORIGIN:
+        raise ValueError(f"Synthetic target {identifier}: target_origin must be {SYNTHETIC_TARGET_ORIGIN!r}.")
+    derived_from = _require_nonempty_text(
+        target.get("derived_from_base_image"),
+        f"Synthetic target {identifier}: derived_from_base_image is required.",
+    )
+    if local_path(root, derived_from) != baseline_path:
+        raise ValueError(
+            f"Synthetic target {identifier}: derived_from_base_image must match derived_from_baseline."
+        )
+    _require_nonempty_text(
+        target.get("generation_record"),
+        f"Synthetic target {identifier}: generation_record is required.",
+    )
+    return _validate_target_common(root, target, identifier)
 
 
 def _validate_trendyol_url(url_text, identifier):
@@ -192,25 +255,13 @@ def _validate_flow(flow, product_by_id):
     return identifier, (flow_type, tuck_top)
 
 
-def validate_pilot_manifest(manifest, root):
-    """Validate 3x3 real-person pilot manifest rules without touching GPU."""
-    root = Path(root).resolve()
-    if manifest.get("schema_version") != 1:
-        raise ValueError("Unsupported pilot manifest schema_version.")
-    targets = manifest.get("targets")
-    products = manifest.get("products")
-    flows = manifest.get("flows")
-    optional_controls = manifest.get("optional_controls", [])
-    if not isinstance(targets, list) or len(targets) != 3:
-        raise ValueError("Pilot manifest requires exactly 3 distinct adult target entries.")
-    if not isinstance(products, list) or len(products) != 3:
-        raise ValueError("Pilot manifest requires exactly 3 products (top, trousers, skirt).")
-    if not isinstance(flows, list) or not isinstance(optional_controls, list):
-        raise ValueError("Pilot manifest flows and optional_controls must be lists.")
-
+def _validate_targets_group(root, targets, *, synthetic=False, baseline_path=None):
     target_ids, target_hashes, target_body_groups = set(), set(), set()
     for target in targets:
-        digest = _validate_target(root, target)
+        if synthetic:
+            digest = _validate_synthetic_target(root, target, baseline_path)
+        else:
+            digest = _validate_target(root, target)
         tid = target["id"]
         if tid in target_ids:
             raise ValueError(f"Duplicate target id: {tid}")
@@ -225,6 +276,8 @@ def validate_pilot_manifest(manifest, root):
     if target_body_groups != ALLOWED_BODY_GROUPS:
         raise ValueError("Pilot targets must cover each body_group exactly once: fuller, medium, slender.")
 
+
+def _validate_products_group(root, products, *, expected_roles):
     product_ids, product_roles, product_hashes = set(), set(), set()
     product_by_id = {}
     for product in products:
@@ -232,27 +285,65 @@ def validate_pilot_manifest(manifest, root):
         pid = product["id"]
         if pid in product_ids or role in product_roles or digest in product_hashes:
             raise ValueError(f"Products must have unique ids, flow_roles, and images ({pid}).")
+        if role not in expected_roles:
+            raise ValueError(f"Product {pid}: flow_role {role!r} is outside allowed roles {sorted(expected_roles)}.")
         product_ids.add(pid)
         product_roles.add(role)
         product_hashes.add(digest)
         product_by_id[pid] = product
-    if product_roles != set(ALLOWED_FLOW_ROLES):
-        raise ValueError("Products must cover exactly top, trousers, and skirt flow roles.")
+    if product_roles != expected_roles:
+        raise ValueError(f"Products must cover exact flow roles: {sorted(expected_roles)}.")
+    return product_by_id
 
-    if len(flows) != len(REQUIRED_CORE_FLOWS):
-        raise ValueError("Core flows must contain exactly 3 flows (top_only, top_plus_trousers, top_plus_skirt with tuck_top=true).")
+
+def _validate_flows_group(flows, product_by_id, *, required_signatures, label):
+    if len(flows) != len(required_signatures):
+        raise ValueError(f"{label} must contain exactly {len(required_signatures)} flows.")
     seen_flow_ids = set()
-    core_signatures = set()
+    signatures = set()
     for flow in flows:
         fid, signature = _validate_flow(flow, product_by_id)
         if fid in seen_flow_ids:
             raise ValueError(f"Duplicate flow id: {fid}")
-        if signature in core_signatures:
-            raise ValueError(f"Duplicate core flow definition for {signature}.")
+        if signature in signatures:
+            raise ValueError(f"Duplicate flow definition for {signature}.")
         seen_flow_ids.add(fid)
-        core_signatures.add(signature)
-    if core_signatures != REQUIRED_CORE_FLOWS:
-        raise ValueError("Core flows must include top_only, top_plus_trousers, and top_plus_skirt (tuck_top=true).")
+        signatures.add(signature)
+    if signatures != required_signatures:
+        raise ValueError(f"{label} must match exact flow signatures {sorted(required_signatures)}.")
+    return seen_flow_ids
+
+
+def validate_pilot_manifest(manifest, root):
+    """Validate 3x3 real-person pilot manifest rules without touching GPU."""
+    root = Path(root).resolve()
+    if manifest.get("schema_version") != 1:
+        raise ValueError("Unsupported pilot manifest schema_version.")
+    if (
+        manifest.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
+        or manifest.get("generalization_evidence") is False
+        or manifest.get("same_base_identity") is True
+    ):
+        raise ValueError("Synthetic technical pilot manifests cannot pass real-person pilot validation; use --synthetic-tech.")
+    targets = manifest.get("targets")
+    products = manifest.get("products")
+    flows = manifest.get("flows")
+    optional_controls = manifest.get("optional_controls", [])
+    if not isinstance(targets, list) or len(targets) != 3:
+        raise ValueError("Pilot manifest requires exactly 3 distinct adult target entries.")
+    if not isinstance(products, list) or len(products) != 3:
+        raise ValueError("Pilot manifest requires exactly 3 products (top, trousers, skirt).")
+    if not isinstance(flows, list) or not isinstance(optional_controls, list):
+        raise ValueError("Pilot manifest flows and optional_controls must be lists.")
+
+    _validate_targets_group(root, targets, synthetic=False)
+    product_by_id = _validate_products_group(root, products, expected_roles=set(ALLOWED_FLOW_ROLES))
+    seen_flow_ids = _validate_flows_group(
+        flows,
+        product_by_id,
+        required_signatures=REQUIRED_CORE_FLOWS,
+        label="Core flows",
+    )
 
     control_signatures = set()
     for control in optional_controls:
@@ -268,6 +359,89 @@ def validate_pilot_manifest(manifest, root):
 
     return {"targets": targets, "products": products, "product_by_id": product_by_id,
             "flows": flows, "optional_controls": optional_controls}
+
+
+def validate_synthetic_pilot_manifest(manifest, root):
+    """Validate isolated 2-flow synthetic technical rehearsal manifest rules."""
+    root = Path(root).resolve()
+    if manifest.get("schema_version") != 1:
+        raise ValueError("Unsupported synthetic pilot manifest schema_version.")
+    if manifest.get("manifest_kind") != SYNTHETIC_MANIFEST_KIND:
+        raise ValueError(f"Synthetic pilot manifest requires manifest_kind == {SYNTHETIC_MANIFEST_KIND!r}.")
+    if manifest.get("generalization_evidence") is not False:
+        raise ValueError("Synthetic pilot manifest must explicitly declare generalization_evidence: false.")
+    if manifest.get("same_base_identity") is not True:
+        raise ValueError("Synthetic pilot manifest must explicitly declare same_base_identity: true.")
+    if manifest.get("effective_subject_diversity") != 1:
+        raise ValueError("Synthetic pilot manifest must explicitly declare effective_subject_diversity: 1.")
+    baseline = _require_nonempty_text(
+        manifest.get("derived_from_baseline"),
+        "Synthetic pilot manifest requires derived_from_baseline.",
+    )
+    baseline_path = local_path(root, baseline)
+    if manifest.get("included_flows") != SYNTHETIC_INCLUDED_FLOWS:
+        raise ValueError(f"Synthetic pilot manifest included_flows must be {SYNTHETIC_INCLUDED_FLOWS!r}.")
+    if manifest.get("excluded_flows") != SYNTHETIC_EXCLUDED_FLOWS:
+        raise ValueError(f"Synthetic pilot manifest excluded_flows must be {SYNTHETIC_EXCLUDED_FLOWS!r}.")
+
+    targets = manifest.get("targets")
+    products = manifest.get("products")
+    flows = manifest.get("flows")
+    optional_controls = manifest.get("optional_controls", [])
+    if not isinstance(targets, list) or len(targets) != 3:
+        raise ValueError("Synthetic pilot manifest requires exactly 3 synthetic preset targets.")
+    if not isinstance(products, list) or len(products) != 2:
+        raise ValueError("Synthetic 2-flow pilot requires exactly 2 products (top and skirt; trousers excluded).")
+    if not isinstance(flows, list) or not isinstance(optional_controls, list):
+        raise ValueError("Synthetic pilot manifest flows and optional_controls must be lists.")
+    if optional_controls:
+        raise ValueError("Synthetic 2-flow pilot disallows optional_controls; include both skirt tuck modes in flows.")
+
+    _validate_targets_group(root, targets, synthetic=True, baseline_path=baseline_path)
+    product_by_id = _validate_products_group(root, products, expected_roles=SYNTHETIC_FLOW_ROLES)
+    _validate_flows_group(
+        flows,
+        product_by_id,
+        required_signatures=SYNTHETIC_FLOW_SIGNATURES,
+        label="Synthetic 2-flow pilot flows",
+    )
+
+    return {"targets": targets, "products": products, "product_by_id": product_by_id,
+            "flows": flows, "optional_controls": []}
+
+
+def _validate_manifest_for_mode(manifest, root, *, synthetic_tech=False):
+    if synthetic_tech:
+        return validate_synthetic_pilot_manifest(manifest, root)
+    return validate_pilot_manifest(manifest, root)
+
+
+def _assert_mode_consistency(manifest, summary=None, *, synthetic_tech=False):
+    if synthetic_tech:
+        if manifest.get("manifest_kind") != SYNTHETIC_MANIFEST_KIND:
+            raise ValueError("Synthetic phase requires a synthetic_technical_pilot manifest.")
+        if summary is not None and (
+            summary.get("pilot_mode") != SYNTHETIC_PILOT_MODE
+            or summary.get("manifest_kind") != SYNTHETIC_MANIFEST_KIND
+            or summary.get("generalization_evidence") is not False
+            or summary.get("same_base_identity") is not True
+            or summary.get("effective_subject_diversity") != 1
+        ):
+            raise ValueError("Run directory pilot-summary.json is not a valid synthetic technical rehearsal.")
+        return
+    if (
+        manifest.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
+        or manifest.get("generalization_evidence") is False
+        or manifest.get("same_base_identity") is True
+    ):
+        raise ValueError("Synthetic technical pilot manifest cannot execute without --synthetic-tech.")
+    if summary is not None and (
+        "pilot_mode" in summary
+        or summary.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
+        or summary.get("generalization_evidence") is False
+        or summary.get("same_base_identity") is True
+    ):
+        raise ValueError("Synthetic technical rehearsal run directory cannot execute without --synthetic-tech.")
 
 
 def verify_pilot_extractions(root, products):
@@ -522,8 +696,9 @@ def _save_case_comparison(root, target, products, result_path, destination):
     board.save(destination)
 
 
-def _create_review_template(run_dir, cases):
+def _create_review_template(run_dir, cases, *, synthetic_tech=False):
     rows = []
+    fieldnames = SYNTHETIC_REVIEW_COLUMNS if synthetic_tech else PILOT_REVIEW_COLUMNS
     for case in cases:
         status = case["status"]
         note = ""
@@ -531,7 +706,7 @@ def _create_review_template(run_dir, cases):
             note = f"parse_blocked: {case.get('error', '')}".strip()
         elif status != "completed":
             note = f"{status}: {case.get('error', '')}".strip()
-        rows.append({
+        row = {
             "id": case["id"],
             "target_id": case["target_id"],
             "flow_id": case["flow_id"],
@@ -543,10 +718,14 @@ def _create_review_template(run_dir, cases):
             "untargeted_changes": "",
             "critical_failure": "",
             "notes": note,
-        })
+        }
+        if synthetic_tech:
+            row["pilot_mode"] = SYNTHETIC_PILOT_MODE
+            row["generalization_evidence"] = "false"
+        rows.append(row)
     path = Path(run_dir) / "review-template.csv"
     with path.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=PILOT_REVIEW_COLUMNS)
+        writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -557,14 +736,22 @@ def _refresh_summary(root, run_dir, summary):
         counts[case["status"]] = counts.get(case["status"], 0) + 1
     summary["counts"] = counts
     write_json(run_dir / "pilot-summary.json", summary)
-    _create_review_template(run_dir, summary["cases"])
+    _create_review_template(
+        run_dir,
+        summary["cases"],
+        synthetic_tech=(summary.get("pilot_mode") == SYNTHETIC_PILOT_MODE),
+    )
 
 
-def _run_top_only_case(root, target, top_product, case_dir, pipeline, case_record):
+def _run_top_only_case(root, target, top_product, case_dir, pipeline, case_record, *, synthetic_tech=False):
     case_dir.mkdir(parents=True, exist_ok=True)
     target_path = local_path(root, target["image"])
     top_path = local_path(root, top_product["image"])
-    write_json(case_dir / "selection.json", {"target": target, "items": [top_product], "flow_type": "top_only"})
+    selection = {"target": target, "items": [top_product], "flow_type": "top_only"}
+    if synthetic_tech:
+        selection["pilot_mode"] = SYNTHETIC_PILOT_MODE
+        selection["generalization_evidence"] = False
+    write_json(case_dir / "selection.json", selection)
     start = time.perf_counter()
     output = pipeline(
         person_image=load_rgb(target_path),
@@ -646,7 +833,7 @@ def _run_trousers_case(root, target, top_product, bottom_product, case_dir, pipe
     )
 
 
-def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipeline, case_record):
+def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipeline, case_record, *, synthetic_tech=False):
     from catvton_inputs import letterbox, target_inputs
     from catvton_skirt_probe import prepare_source
     from local_skirt_inputs import skirt_inputs
@@ -660,6 +847,9 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
         "flow_type": "top_plus_skirt",
         "tuck_top": bool(case_record["tuck_top"]),
     }
+    if synthetic_tech:
+        selection["pilot_mode"] = SYNTHETIC_PILOT_MODE
+        selection["generalization_evidence"] = False
     write_json(case_dir / "selection.json", selection)
 
     start = time.perf_counter()
@@ -731,7 +921,7 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
     )
 
 
-def run_fashn_phase(root, run_dir, *, fashn_factory=None):
+def run_fashn_phase(root, run_dir, *, fashn_factory=None, synthetic_tech=False):
     """Execute preflight parsing and Phase 1 FASHN stages inside .venv."""
     root = Path(root).resolve()
     if fashn_factory is None and not _is_current_venv(root, ".venv"):
@@ -741,9 +931,10 @@ def run_fashn_phase(root, run_dir, *, fashn_factory=None):
         )
     run_dir = _assert_pilot_run_dir(root, run_dir)
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-    validated = validate_pilot_manifest(manifest, root)
-    extractions = verify_pilot_extractions(root, validated["products"])
     summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+    _assert_mode_consistency(manifest, summary, synthetic_tech=synthetic_tech)
+    validated = _validate_manifest_for_mode(manifest, root, synthetic_tech=synthetic_tech)
+    extractions = verify_pilot_extractions(root, validated["products"])
     summary["source_extractions"] = extractions
 
     if fashn_factory is None:
@@ -772,7 +963,15 @@ def run_fashn_phase(root, run_dir, *, fashn_factory=None):
         case_dir = run_dir / "cases" / case["id"]
         try:
             if case["flow_type"] == "top_only":
-                _run_top_only_case(root, target, top_product, case_dir, pipeline, case)
+                _run_top_only_case(
+                    root,
+                    target,
+                    top_product,
+                    case_dir,
+                    pipeline,
+                    case,
+                    synthetic_tech=synthetic_tech,
+                )
                 if case["status"] == "completed":
                     try:
                         _save_case_comparison(root, target, [("TOP SOURCE", top_product)], case_dir / "result.png", case_dir / "comparison.jpg")
@@ -794,7 +993,16 @@ def run_fashn_phase(root, run_dir, *, fashn_factory=None):
                         case["comparison_error"] = str(error)
             else:
                 skirt_product = products_by_id[case["bottom_id"]]
-                _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipeline, case)
+                _prepare_skirt_case(
+                    root,
+                    target,
+                    top_product,
+                    skirt_product,
+                    case_dir,
+                    pipeline,
+                    case,
+                    synthetic_tech=synthetic_tech,
+                )
         except Exception as error:
             _cleanup_stage2_artifacts(case_dir, final_status="failed", reason=str(error))
             case.update(status="failed", error=str(error), traceback=traceback.format_exc())
@@ -810,7 +1018,7 @@ def run_fashn_phase(root, run_dir, *, fashn_factory=None):
     return summary
 
 
-def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None):
+def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None, synthetic_tech=False):
     """Execute Phase 2 CatVTON skirt inference on prepared pilot cases."""
     root = Path(root).resolve()
     if skirt_lower_fn is None and not _is_current_venv(root, ".venv-catvton"):
@@ -822,10 +1030,12 @@ def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None):
 
     run_dir = _assert_pilot_run_dir(root, run_dir)
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-    validated = validate_pilot_manifest(manifest, root)
+    summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+    _assert_mode_consistency(manifest, summary, synthetic_tech=synthetic_tech)
+    validated = _validate_manifest_for_mode(manifest, root, synthetic_tech=synthetic_tech)
+    verify_pilot_extractions(root, validated["products"])
     targets_by_id = {t["id"]: t for t in validated["targets"]}
     products_by_id = validated["product_by_id"]
-    summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
 
     lower_fn = skirt_lower_fn or local_skirt.lower
     original_root = local_skirt.ROOT
@@ -878,6 +1088,7 @@ def run_pilot(
     manifest_path,
     *,
     include_untucked=False,
+    synthetic_tech=False,
     fashn_factory=None,
     run_phase1_in_subprocess=True,
     subprocess_runner=None,
@@ -885,9 +1096,14 @@ def run_pilot(
 ):
     """Run full pilot validation (preflight, FASHN Phase 1, isolated CatVTON Phase 2)."""
     root = Path(root).resolve()
+    if synthetic_tech and include_untucked:
+        raise ValueError(
+            "--include-untucked is only valid for the real 3x3 pilot; synthetic 2-flow pilot already defines tucked and untucked flows."
+        )
     manifest_file = local_path(root, manifest_path) if not Path(manifest_path).is_absolute() else Path(manifest_path).resolve()
     manifest = json.loads(manifest_file.read_text(encoding="utf-8-sig"))
-    validated = validate_pilot_manifest(manifest, root)
+    _assert_mode_consistency(manifest, synthetic_tech=synthetic_tech)
+    validated = _validate_manifest_for_mode(manifest, root, synthetic_tech=synthetic_tech)
     extractions = verify_pilot_extractions(root, validated["products"])
     fashn_python = (
         _require_venv_python(root, ".venv")
@@ -901,25 +1117,60 @@ def run_pilot(
     summary = {
         "schema_version": 1,
         "status": "initializing",
-        "scope": "3x3 pilot readiness validation; never the >=80% general quality gate",
+        "scope": (
+            "Synthetic 2-flow technical rehearsal only (top_only, top_plus_skirt tucked/untucked); "
+            "never real-human quality or >=80% generalization evidence"
+            if synthetic_tech
+            else "3x3 pilot readiness validation; never the >=80% general quality gate"
+        ),
         "manifest_sha256": sha256(manifest_file),
         "include_untucked": bool(include_untucked),
         "settings": {"fashn": FASHN_SETTINGS, "catvton": {"steps": 50, "guidance": 2.5, "seed": 42}},
         "source_extractions": extractions,
         "cases": expand_pilot_cases(manifest, include_untucked=include_untucked),
     }
+    if synthetic_tech:
+        summary.update(
+            pilot_mode=SYNTHETIC_PILOT_MODE,
+            manifest_kind=SYNTHETIC_MANIFEST_KIND,
+            generalization_evidence=False,
+            same_base_identity=True,
+            effective_subject_diversity=1,
+            distinct_target_sha256=True,
+            derived_from_base_image=manifest["derived_from_baseline"],
+            target_sha256s={t["id"]: t["image_sha256"] for t in validated["targets"]},
+            included_flows=list(manifest["included_flows"]),
+            excluded_flows=list(manifest["excluded_flows"]),
+            evidence_limits=(
+                "Synthetic presets all derive from avatar-baseline.png; effective subject diversity is 1 "
+                "and top_plus_trousers is excluded."
+            ),
+        )
     _refresh_summary(root, run_dir, summary)
     runner = subprocess_runner or subprocess.run
 
     try:
         if fashn_factory is not None or not run_phase1_in_subprocess:
-            summary = run_fashn_phase(root, run_dir, fashn_factory=fashn_factory)
-        else:
-            runner(
-                [str(fashn_python), "-u", str(Path(__file__).resolve()), "fashn-phase", "--root", str(root), "--run-dir", str(run_dir)],
-                check=True,
-                cwd=root,
+            summary = run_fashn_phase(
+                root,
+                run_dir,
+                fashn_factory=fashn_factory,
+                synthetic_tech=synthetic_tech,
             )
+        else:
+            fashn_cmd = [
+                str(fashn_python),
+                "-u",
+                str(Path(__file__).resolve()),
+                "fashn-phase",
+                "--root",
+                str(root),
+                "--run-dir",
+                str(run_dir),
+            ]
+            if synthetic_tech:
+                fashn_cmd.append("--synthetic-tech")
+            runner(fashn_cmd, check=True, cwd=root)
             summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
 
         prepared_skirts = [c for c in summary["cases"] if c["flow_type"] == "top_plus_skirt" and c["status"] == "prepared"]
@@ -928,11 +1179,19 @@ def run_pilot(
                 catvton_runner(root, run_dir)
             else:
                 cat_python = _require_venv_python(root, ".venv-catvton")
-                runner(
-                    [str(cat_python), "-u", str(Path(__file__).resolve()), "catvton-lower", "--root", str(root), "--run-dir", str(run_dir)],
-                    check=True,
-                    cwd=root,
-                )
+                cat_cmd = [
+                    str(cat_python),
+                    "-u",
+                    str(Path(__file__).resolve()),
+                    "catvton-lower",
+                    "--root",
+                    str(root),
+                    "--run-dir",
+                    str(run_dir),
+                ]
+                if synthetic_tech:
+                    cat_cmd.append("--synthetic-tech")
+                runner(cat_cmd, check=True, cwd=root)
             summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
 
         for case in summary["cases"]:
@@ -964,31 +1223,37 @@ def main(argv=None):
     check_p = commands.add_parser("validate", help="Validate pilot manifest and SAM2 extraction provenance without GPU")
     check_p.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     check_p.add_argument("--manifest", type=Path, required=True)
+    check_p.add_argument("--synthetic-tech", action="store_true")
 
     preflight_p = commands.add_parser("preflight", help="Validate manifest and run human-parsing preflight on real targets")
     preflight_p.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     preflight_p.add_argument("--manifest", type=Path, required=True)
+    preflight_p.add_argument("--synthetic-tech", action="store_true")
 
     run_p = commands.add_parser("run", help="Run full pilot validation (FASHN Phase 1 + isolated CatVTON Phase 2)")
     run_p.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     run_p.add_argument("--manifest", type=Path, required=True)
     run_p.add_argument("--include-untucked", action="store_true")
+    run_p.add_argument("--synthetic-tech", action="store_true")
 
     fashn_p = commands.add_parser("fashn-phase", help=argparse.SUPPRESS)
     fashn_p.add_argument("--root", type=Path, required=True)
     fashn_p.add_argument("--run-dir", type=Path, required=True)
+    fashn_p.add_argument("--synthetic-tech", action="store_true")
 
     cat_p = commands.add_parser("catvton-lower", help=argparse.SUPPRESS)
     cat_p.add_argument("--root", type=Path, required=True)
     cat_p.add_argument("--run-dir", type=Path, required=True)
+    cat_p.add_argument("--synthetic-tech", action="store_true")
 
     args = parser.parse_args(cli_argv)
     if args.command == "validate":
         manifest_path = local_path(args.root, args.manifest) if not args.manifest.is_absolute() else args.manifest.resolve()
         manifest_data = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
-        validated_data = validate_pilot_manifest(manifest_data, args.root)
+        _assert_mode_consistency(manifest_data, synthetic_tech=args.synthetic_tech)
+        validated_data = _validate_manifest_for_mode(manifest_data, args.root, synthetic_tech=args.synthetic_tech)
         verify_pilot_extractions(args.root, validated_data["products"])
-        print("PILOT_MANIFEST_VALID", flush=True)
+        print("SYNTHETIC_PILOT_MANIFEST_VALID" if args.synthetic_tech else "PILOT_MANIFEST_VALID", flush=True)
         return 0
     if args.command == "preflight":
         try:
@@ -998,7 +1263,8 @@ def main(argv=None):
             return 1
         manifest_path = local_path(args.root, args.manifest) if not args.manifest.is_absolute() else args.manifest.resolve()
         manifest_data = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
-        validated_data = validate_pilot_manifest(manifest_data, args.root)
+        _assert_mode_consistency(manifest_data, synthetic_tech=args.synthetic_tech)
+        validated_data = _validate_manifest_for_mode(manifest_data, args.root, synthetic_tech=args.synthetic_tech)
         verify_pilot_extractions(args.root, validated_data["products"])
         run_dir = _create_pilot_dir(args.root)
         _assert_pilot_run_dir(args.root, run_dir)
@@ -1006,12 +1272,25 @@ def main(argv=None):
         from masked_outfit import MaskedOutfitPipeline
         pipeline = MaskedOutfitPipeline(args.root, validated_data["products"])
         result = run_parsing_preflight(args.root, validated_data["targets"], pipeline.hp_model, run_dir / "preflight")
+        if args.synthetic_tech:
+            result.update(
+                pilot_mode=SYNTHETIC_PILOT_MODE,
+                manifest_kind=SYNTHETIC_MANIFEST_KIND,
+                generalization_evidence=False,
+                same_base_identity=True,
+                effective_subject_diversity=1,
+            )
         write_json(run_dir / "parsing-preflight.json", result)
         print(run_dir, flush=True)
         return 0
     if args.command == "run":
         try:
-            dest = run_pilot(args.root, args.manifest, include_untucked=args.include_untucked)
+            dest = run_pilot(
+                args.root,
+                args.manifest,
+                include_untucked=args.include_untucked,
+                synthetic_tech=args.synthetic_tech,
+            )
         except (FileNotFoundError, RuntimeError) as error:
             print(f"ERROR: {error}", file=sys.stderr, flush=True)
             return 1
@@ -1023,10 +1302,10 @@ def main(argv=None):
         except (FileNotFoundError, RuntimeError) as error:
             print(f"ERROR: {error}", file=sys.stderr, flush=True)
             return 1
-        run_fashn_phase(args.root, args.run_dir)
+        run_fashn_phase(args.root, args.run_dir, synthetic_tech=args.synthetic_tech)
         return 0
     try:
-        run_catvton_lower(args.root, args.run_dir)
+        run_catvton_lower(args.root, args.run_dir, synthetic_tech=args.synthetic_tech)
     except (FileNotFoundError, RuntimeError) as error:
         print(f"ERROR: {error}", file=sys.stderr, flush=True)
         return 1

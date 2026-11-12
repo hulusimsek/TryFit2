@@ -199,27 +199,132 @@ def _build_fixture_repo(root: Path):
     return manifest, manifest_path
 
 
-def _fake_catvton_success(root: Path, run_dir: Path):
-    def fake_lower(case_dir: Path):
-        handoff_sha = sha256(case_dir / "skirt-handoff.json")
-        repaint = case_dir / "02-skirt-repaint.png"
-        raw = case_dir / "02-skirt-raw.png"
-        Image.new("RGB", (60, 80), (15, 15, 15)).save(raw)
-        Image.new("RGB", (60, 80), (18, 18, 18)).save(repaint)
-        (case_dir / "catvton-outcome.json").write_text(
-            json.dumps(
-                {
-                    "status": "completed",
-                    "raw_sha256": sha256(raw),
-                    "output_sha256": sha256(repaint),
-                    "handoff_sha256": handoff_sha,
-                    "elapsed_seconds": 0.05,
-                }
-            ),
-            encoding="utf-8",
+def _build_synthetic_fixture_repo(root: Path):
+    (root / "runs").mkdir(parents=True, exist_ok=True)
+    avatar_dir = root / "data/avatar-profiles"
+    baseline_dir = root / "data/first-outfit"
+    bench_dir = root / "data/benchmark-10"
+    manifest_dir = root / "data/pilot-synthetic"
+    for directory in (avatar_dir, baseline_dir, bench_dir, manifest_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    baseline_path = baseline_dir / "avatar-baseline.png"
+    target_specs = [
+        ("slender", "slender", avatar_dir / "slender.png", (210, 100, 100), "evaluation/annotations/avatar-profile-generation.json"),
+        ("medium", "medium", baseline_path, (100, 210, 100), "docs/avatar-baseline.md"),
+        ("fuller", "fuller", avatar_dir / "fuller.png", (100, 100, 210), "evaluation/annotations/avatar-profile-generation.json"),
+    ]
+    targets = []
+    for tid, group, img_path, color, gen_record in target_specs:
+        Image.new("RGB", (60, 80), color).save(img_path)
+        targets.append(
+            {
+                "id": tid,
+                "body_group": group,
+                "target_origin": "synthetic_visual_preset",
+                "derived_from_base_image": "data/first-outfit/avatar-baseline.png",
+                "generation_record": gen_record,
+                "image": img_path.relative_to(root).as_posix(),
+                "image_sha256": sha256(img_path),
+                "measured": False,
+                "pose_notes": "Synthetic frontal standing full-body studio pose",
+                "footwear_notes": "Bare feet flat on neutral studio floor",
+                "current_clothing_notes": "Plain fitted light-grey top and grey leggings",
+                "lighting_background_notes": "Uniform pale grey seamless studio background",
+            }
         )
 
-    pilot_runner.run_catvton_lower(root, run_dir, skirt_lower_fn=fake_lower)
+    product_specs = [
+        ("tshirt", "Tişört", "top", "tops", bench_dir / "tshirt.jpg", (220, 40, 40)),
+        ("skirt", "Etek", "skirt", "bottoms", bench_dir / "skirt.jpg", (20, 20, 20)),
+    ]
+    products = []
+    for pid, label, role, category, img_path, color in product_specs:
+        Image.new("RGB", (60, 80), color).save(img_path)
+        img_sha = sha256(img_path)
+
+        ext_dir = root / "runs" / f"source-extraction-{pid}-refined"
+        ext_dir.mkdir(parents=True, exist_ok=True)
+        mask = np.zeros((80, 60), dtype="uint8")
+        mask[15:65, 15:45] = 255
+        Image.fromarray(mask).save(ext_dir / "mask.png")
+        ext_meta = {
+            "annotation": {"id": pid, "category": category, "image_sha256": img_sha},
+            "mask_sha256": sha256(ext_dir / "mask.png"),
+        }
+        (ext_dir / "extraction.json").write_text(json.dumps(ext_meta), encoding="utf-8")
+
+        products.append(
+            {
+                "id": pid,
+                "label": label,
+                "flow_role": role,
+                "category": category,
+                "garment_photo_type": "model",
+                "image": img_path.relative_to(root).as_posix(),
+                "image_sha256": img_sha,
+                "product_url": f"https://www.trendyol.com/fixture/{pid}-p-123456",
+                "source_image_url": f"https://cdn.example.invalid/{pid}.jpg",
+                "photo_origin": "real_model_photo",
+                "listing_ai_generated_label_observed": False,
+                "source_notes": f"Fixture real model {role}",
+            }
+        )
+
+    manifest = {
+        "schema_version": 1,
+        "manifest_kind": "synthetic_technical_pilot",
+        "purpose": "Fixture isolated 2-flow synthetic technical rehearsal",
+        "generalization_evidence": False,
+        "same_base_identity": True,
+        "effective_subject_diversity": 1,
+        "derived_from_baseline": "data/first-outfit/avatar-baseline.png",
+        "included_flows": ["top_only", "top_plus_skirt"],
+        "excluded_flows": ["top_plus_trousers"],
+        "targets": targets,
+        "products": products,
+        "flows": [
+            {"id": "top", "flow_type": "top_only", "top_id": "tshirt"},
+            {"id": "skirt-tucked", "flow_type": "top_plus_skirt", "top_id": "tshirt", "bottom_id": "skirt", "tuck_top": True},
+            {"id": "skirt-untucked", "flow_type": "top_plus_skirt", "top_id": "tshirt", "bottom_id": "skirt", "tuck_top": False},
+        ],
+    }
+    manifest_path = manifest_dir / "synthetic-2flow-manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest, manifest_path
+
+
+def _fake_catvton_outcome(case_dir: Path):
+    handoff_sha = sha256(case_dir / "skirt-handoff.json")
+    repaint = case_dir / "02-skirt-repaint.png"
+    raw = case_dir / "02-skirt-raw.png"
+    Image.new("RGB", (60, 80), (15, 15, 15)).save(raw)
+    Image.new("RGB", (60, 80), (18, 18, 18)).save(repaint)
+    (case_dir / "catvton-outcome.json").write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "raw_sha256": sha256(raw),
+                "output_sha256": sha256(repaint),
+                "handoff_sha256": handoff_sha,
+                "elapsed_seconds": 0.05,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _fake_catvton_success(root: Path, run_dir: Path):
+    pilot_runner.run_catvton_lower(root, run_dir, skirt_lower_fn=_fake_catvton_outcome)
+
+
+def _fake_catvton_synthetic_success(root: Path, run_dir: Path):
+    pilot_runner.run_catvton_lower(
+        root,
+        run_dir,
+        skirt_lower_fn=_fake_catvton_outcome,
+        synthetic_tech=True,
+    )
 
 
 class PilotValidationTests(unittest.TestCase):
@@ -736,6 +841,378 @@ class PilotValidationTests(unittest.TestCase):
             audit = json.loads((case_dir / "parsing-post-top.json").read_text(encoding="utf-8"))
             self.assertFalse(audit["valid"])
             self.assertIn("audit_error", audit)
+
+
+class SyntheticTechPilotTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.real_manifest, self.real_manifest_path = _build_fixture_repo(self.root)
+        self.manifest, self.manifest_path = _build_synthetic_fixture_repo(self.root)
+
+    def test_repo_synthetic_manifest_contract_and_live_extractions(self):
+        repo_manifest_path = ROOT_DIR / "evaluation/manifests/pilot-synthetic-2flow.json"
+        repo_manifest = json.loads(repo_manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(repo_manifest["manifest_kind"], "synthetic_technical_pilot")
+        self.assertIs(repo_manifest["generalization_evidence"], False)
+        self.assertIs(repo_manifest["same_base_identity"], True)
+        self.assertEqual(repo_manifest["effective_subject_diversity"], 1)
+        self.assertEqual(repo_manifest["included_flows"], ["top_only", "top_plus_skirt"])
+        self.assertEqual(repo_manifest["excluded_flows"], ["top_plus_trousers"])
+
+        hashes = set()
+        for target in repo_manifest["targets"]:
+            for forbidden in pilot_runner.REAL_CONSENT_FORBIDDEN_FIELDS:
+                self.assertNotIn(forbidden, target)
+            self.assertEqual(target["target_origin"], "synthetic_visual_preset")
+            self.assertEqual(target["derived_from_base_image"], repo_manifest["derived_from_baseline"])
+            hashes.add(target["image_sha256"])
+        self.assertEqual(len(hashes), 3)
+
+        required_assets = [ROOT_DIR / t["image"] for t in repo_manifest["targets"]] + [
+            ROOT_DIR / p["image"] for p in repo_manifest["products"]
+        ]
+        required_extractions = [
+            ROOT_DIR / f"runs/source-extraction-{p['id']}-refined/extraction.json"
+            for p in repo_manifest["products"]
+        ]
+        if all(path.is_file() for path in required_assets + required_extractions):
+            validated = pilot_runner.validate_synthetic_pilot_manifest(repo_manifest, ROOT_DIR)
+            provenance = pilot_runner.verify_pilot_extractions(ROOT_DIR, validated["products"])
+            self.assertEqual(set(provenance), {"tshirt", "skirt"})
+            with self.assertRaises(ValueError):
+                pilot_runner.validate_pilot_manifest(repo_manifest, ROOT_DIR)
+
+    def test_bidirectional_isolation_and_synthetic_manifest_guards(self):
+        validated = pilot_runner.validate_synthetic_pilot_manifest(self.manifest, self.root)
+        self.assertEqual(len(validated["targets"]), 3)
+        self.assertEqual(len(validated["products"]), 2)
+
+        # Real validator must reject synthetic manifest even if caller invokes real mode.
+        with self.assertRaises(ValueError):
+            pilot_runner.validate_pilot_manifest(self.manifest, self.root)
+
+        # Synthetic validator must reject real manifests and the unfilled real template.
+        with self.assertRaises(ValueError):
+            pilot_runner.validate_synthetic_pilot_manifest(self.real_manifest, self.root)
+        template_manifest = json.loads(
+            (ROOT_DIR / "evaluation/manifests/pilot-3x3.template.json").read_text(encoding="utf-8")
+        )
+        with self.assertRaises(ValueError):
+            pilot_runner.validate_synthetic_pilot_manifest(template_manifest, ROOT_DIR)
+
+        # Reject any forged real-consent fields on synthetic targets.
+        for field, value in (
+            ("adult_confirmed", True),
+            ("consent_confirmed", True),
+            ("consent_record_id", "FAKE-01"),
+            ("consent_scope", pilot_runner.ALLOWED_CONSENT_SCOPE),
+            ("retention_until", "2099-01-01"),
+        ):
+            forged = copy.deepcopy(self.manifest)
+            forged["targets"][0][field] = value
+            with self.assertRaises(ValueError):
+                pilot_runner.validate_synthetic_pilot_manifest(forged, self.root)
+
+        # Reject attempts to misrepresent synthetic run as generalization or multi-identity evidence.
+        for mutator in (
+            lambda m: m.__setitem__("generalization_evidence", True),
+            lambda m: m.__setitem__("same_base_identity", False),
+            lambda m: m.__setitem__("effective_subject_diversity", 3),
+            lambda m: m.__setitem__("excluded_flows", []),
+            lambda m: m.__setitem__("included_flows", ["top_only", "top_plus_trousers", "top_plus_skirt"]),
+            lambda m: m.__setitem__("optional_controls", [{"id": "extra", "flow_type": "top_plus_skirt", "top_id": "tshirt", "bottom_id": "skirt", "tuck_top": False}]),
+        ):
+            bad = copy.deepcopy(self.manifest)
+            mutator(bad)
+            with self.assertRaises(ValueError):
+                pilot_runner.validate_synthetic_pilot_manifest(bad, self.root)
+
+        # Duplicate SHA-256 across two synthetic avatars must fail.
+        dup_img = copy.deepcopy(self.manifest)
+        dup_path = self.root / dup_img["targets"][0]["image"]
+        same_bytes_path = self.root / dup_img["targets"][2]["image"]
+        dup_path.write_bytes(same_bytes_path.read_bytes())
+        dup_img["targets"][0]["image_sha256"] = sha256(dup_path)
+        with self.assertRaises(ValueError):
+            pilot_runner.validate_synthetic_pilot_manifest(dup_img, self.root)
+
+        # Reject trousers flow/product, wide-trousers reference, or missing untucked flow.
+        trousers_img = self.root / "data/benchmark-10/wide-trousers.jpg"
+        Image.new("RGB", (60, 80), (40, 40, 220)).save(trousers_img)
+        trousers_prod = copy.deepcopy(self.manifest)
+        trousers_prod["products"].append(
+            {
+                "id": "wide-trousers",
+                "label": "Pantolon",
+                "flow_role": "trousers",
+                "category": "bottoms",
+                "garment_photo_type": "model",
+                "image": trousers_img.relative_to(self.root).as_posix(),
+                "image_sha256": sha256(trousers_img),
+                "product_url": "https://www.trendyol.com/fixture/wide-trousers-p-999",
+                "source_image_url": "https://cdn.example.invalid/wide-trousers.jpg",
+                "photo_origin": "real_model_photo",
+                "listing_ai_generated_label_observed": False,
+                "source_notes": "Synthetic guard test trousers",
+            }
+        )
+        trousers_prod["flows"].append(
+            {"id": "trousers", "flow_type": "top_plus_trousers", "top_id": "tshirt", "bottom_id": "wide-trousers"}
+        )
+        with self.assertRaises(ValueError):
+            pilot_runner.validate_synthetic_pilot_manifest(trousers_prod, self.root)
+
+        missing_untucked = copy.deepcopy(self.manifest)
+        missing_untucked["flows"].pop()
+        with self.assertRaises(ValueError):
+            pilot_runner.validate_synthetic_pilot_manifest(missing_untucked, self.root)
+
+        # Reject --include-untucked under synthetic mode.
+        with self.assertRaises(ValueError):
+            pilot_runner.run_pilot(
+                self.root,
+                self.manifest_path,
+                include_untucked=True,
+                synthetic_tech=True,
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                catvton_runner=_fake_catvton_synthetic_success,
+            )
+
+    def test_end_to_end_9_case_synthetic_mock_run_verifies_every_avatar_and_flow(self):
+        fake_fashn = FakeFashnPipeline()
+        run_dir = pilot_runner.run_pilot(
+            self.root,
+            self.manifest_path,
+            synthetic_tech=True,
+            fashn_factory=lambda _r, _p: fake_fashn,
+            catvton_runner=_fake_catvton_synthetic_success,
+        )
+        self.assertTrue(run_dir.name.startswith("pilot-"))
+
+        summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["status"], "completed")
+        self.assertEqual(summary["pilot_mode"], "synthetic_technical_rehearsal")
+        self.assertEqual(summary["manifest_kind"], "synthetic_technical_pilot")
+        self.assertIs(summary["generalization_evidence"], False)
+        self.assertIs(summary["same_base_identity"], True)
+        self.assertEqual(summary["effective_subject_diversity"], 1)
+        self.assertIs(summary["distinct_target_sha256"], True)
+        self.assertEqual(summary["excluded_flows"], ["top_plus_trousers"])
+        self.assertEqual(summary["included_flows"], ["top_only", "top_plus_skirt"])
+        self.assertEqual(len(set(summary["target_sha256s"].values())), 3)
+        self.assertEqual(summary["counts"], {"completed": 9})
+
+        cases_by_pair = {(c["target_id"], c["flow_id"]): c for c in summary["cases"]}
+        expected_pairs = [
+            (avatar, flow_id)
+            for avatar in ("slender", "medium", "fuller")
+            for flow_id in ("top", "skirt-tucked", "skirt-untucked")
+        ]
+        self.assertEqual(set(cases_by_pair), set(expected_pairs))
+        for avatar, flow_id in expected_pairs:
+            case = cases_by_pair[(avatar, flow_id)]
+            self.assertEqual(case["status"], "completed")
+            self.assertNotEqual(case["flow_type"], "top_plus_trousers")
+            case_dir = run_dir / "cases" / case["id"]
+            self.assertTrue((case_dir / "result.png").is_file(), f"Missing result.png for {case['id']}")
+            self.assertTrue((case_dir / "comparison.jpg").is_file(), f"Missing comparison.jpg for {case['id']}")
+            selection = json.loads((case_dir / "selection.json").read_text(encoding="utf-8"))
+            self.assertEqual(selection["pilot_mode"], "synthetic_technical_rehearsal")
+            self.assertIs(selection["generalization_evidence"], False)
+            if flow_id == "skirt-tucked":
+                self.assertIs(case["tuck_top"], True)
+                self.assertIs(selection["tuck_top"], True)
+            elif flow_id == "skirt-untucked":
+                self.assertIs(case["tuck_top"], False)
+                self.assertIs(selection["tuck_top"], False)
+            else:
+                self.assertIsNone(case["tuck_top"])
+
+        with (run_dir / "review-template.csv").open("r", newline="", encoding="utf-8") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(len(rows), 9)
+        csv_pairs = {(row["target_id"], row["flow_id"]): row for row in rows}
+        self.assertEqual(set(csv_pairs), set(expected_pairs))
+        for pair in expected_pairs:
+            row = csv_pairs[pair]
+            self.assertEqual(row["case_status"], "completed")
+            self.assertEqual(row["pilot_mode"], "synthetic_technical_rehearsal")
+            self.assertEqual(row["generalization_evidence"], "false")
+
+    def test_phase_security_validates_manifest_and_blocks_cross_mode_execution(self):
+        # Subprocess orchestrator must forward --synthetic-tech to both phase subprocesses.
+        recorded_cmds = []
+
+        def fake_subprocess(cmd, check=True, cwd=None):
+            recorded_cmds.append(list(cmd))
+            if "fashn-phase" in cmd:
+                pilot_runner.run_fashn_phase(
+                    self.root,
+                    cmd[cmd.index("--run-dir") + 1],
+                    fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                    synthetic_tech=("--synthetic-tech" in cmd),
+                )
+            elif "catvton-lower" in cmd:
+                pilot_runner.run_catvton_lower(
+                    self.root,
+                    cmd[cmd.index("--run-dir") + 1],
+                    skirt_lower_fn=_fake_catvton_outcome,
+                    synthetic_tech=("--synthetic-tech" in cmd),
+                )
+
+        with patch.object(pilot_runner, "_require_venv_python", return_value=Path(sys.executable)):
+            run_dir = pilot_runner.run_pilot(
+                self.root,
+                self.manifest_path,
+                synthetic_tech=True,
+                run_phase1_in_subprocess=True,
+                subprocess_runner=fake_subprocess,
+            )
+        self.assertEqual(len(recorded_cmds), 2)
+        self.assertIn("fashn-phase", recorded_cmds[0])
+        self.assertIn("--synthetic-tech", recorded_cmds[0])
+        self.assertIn("catvton-lower", recorded_cmds[1])
+        self.assertIn("--synthetic-tech", recorded_cmds[1])
+
+        # Prepare a Phase 1 synthetic run_dir without executing Phase 2 yet.
+        captured_dirs = []
+
+        def halt_phase2(_root, d):
+            captured_dirs.append(d)
+            raise RuntimeError("halt before phase 2")
+
+        with patch.object(pilot_runner, "_require_venv_python", return_value=Path(sys.executable)):
+            with self.assertRaises(RuntimeError):
+                pilot_runner.run_pilot(
+                    self.root,
+                    self.manifest_path,
+                    synthetic_tech=True,
+                    fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                    catvton_runner=halt_phase2,
+                )
+        self.assertEqual(len(captured_dirs), 1)
+        prepared_run_dir = captured_dirs[0]
+
+        # Cross-mode execution must be refused by both phases.
+        with self.assertRaises(ValueError):
+            pilot_runner.run_fashn_phase(
+                self.root,
+                prepared_run_dir,
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                synthetic_tech=False,
+            )
+        with self.assertRaises(ValueError):
+            pilot_runner.run_catvton_lower(
+                self.root,
+                prepared_run_dir,
+                skirt_lower_fn=_fake_catvton_outcome,
+                synthetic_tech=False,
+            )
+
+        # Real run_dir must be refused under synthetic_tech=True.
+        with self.assertRaises(ValueError):
+            pilot_runner.run_fashn_phase(
+                self.root,
+                run_dir,
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                synthetic_tech=False,
+            )
+        real_run_dir = pilot_runner.run_pilot(
+            self.root,
+            self.real_manifest_path,
+            fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+            catvton_runner=_fake_catvton_success,
+        )
+        with self.assertRaises(ValueError):
+            pilot_runner.run_fashn_phase(
+                self.root,
+                real_run_dir,
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                synthetic_tech=True,
+            )
+        with self.assertRaises(ValueError):
+            pilot_runner.run_catvton_lower(
+                self.root,
+                real_run_dir,
+                skirt_lower_fn=_fake_catvton_outcome,
+                synthetic_tech=True,
+            )
+
+        # Tampering manifest.json inside run_dir (even with manifest_kind/pilot_mode matching) must be caught
+        # because both phases re-run the full synthetic validator on manifest.json.
+        tampered_manifest_path = prepared_run_dir / "manifest.json"
+        tampered = json.loads(tampered_manifest_path.read_text(encoding="utf-8"))
+        tampered["targets"][0]["adult_confirmed"] = True
+        tampered_manifest_path.write_text(json.dumps(tampered), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            pilot_runner.run_fashn_phase(
+                self.root,
+                prepared_run_dir,
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                synthetic_tech=True,
+            )
+        with self.assertRaises(ValueError):
+            pilot_runner.run_catvton_lower(
+                self.root,
+                prepared_run_dir,
+                skirt_lower_fn=_fake_catvton_outcome,
+                synthetic_tech=True,
+            )
+
+        # Tampering pilot-summary.json inside run_dir (even with valid manifest.json) must also be caught.
+        tampered_summary_path = run_dir / "pilot-summary.json"
+        tampered_summary = json.loads(tampered_summary_path.read_text(encoding="utf-8"))
+        tampered_summary.pop("pilot_mode")
+        tampered_summary_path.write_text(json.dumps(tampered_summary), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            pilot_runner.run_fashn_phase(
+                self.root,
+                run_dir,
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                synthetic_tech=True,
+            )
+        with self.assertRaises(ValueError):
+            pilot_runner.run_catvton_lower(
+                self.root,
+                run_dir,
+                skirt_lower_fn=_fake_catvton_outcome,
+                synthetic_tech=True,
+            )
+
+        # Wrong Python interpreter under --synthetic-tech CLI commands must fail cleanly.
+        for args in (
+            ["preflight", "--root", str(self.root), "--manifest", str(self.manifest_path), "--synthetic-tech"],
+            ["fashn-phase", "--root", str(self.root), "--run-dir", str(run_dir), "--synthetic-tech"],
+            ["catvton-lower", "--root", str(self.root), "--run-dir", str(run_dir), "--synthetic-tech"],
+        ):
+            self.assertEqual(pilot_runner.main(args), 1)
+
+    def test_synthetic_parsing_block_leaves_no_result_png(self):
+        # Target "fuller" ((100,100,210)) shifts post-top to (101,100,210) missing feet -> parse_blocked on skirts.
+        partial_parser = FakeFashnPipeline(
+            target_labels_by_sha={(101, 100, 210): _no_feet_labels},
+            top_tag_override={(100, 100, 210): (101, 100, 210)},
+        )
+        run_dir = pilot_runner.run_pilot(
+            self.root,
+            self.manifest_path,
+            synthetic_tech=True,
+            fashn_factory=lambda _r, _p: partial_parser,
+            catvton_runner=_fake_catvton_synthetic_success,
+        )
+        summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["status"], "completed_with_parse_blocks")
+        self.assertEqual(summary["counts"], {"completed": 7, "parse_blocked": 2})
+
+        by_id = {c["id"]: c for c in summary["cases"]}
+        self.assertEqual(by_id["fuller__top"]["status"], "completed")
+        for blocked in ("fuller__skirt-tucked", "fuller__skirt-untucked"):
+            self.assertEqual(by_id[blocked]["status"], "parse_blocked")
+            case_dir = run_dir / "cases" / blocked
+            self.assertFalse((case_dir / "result.png").exists())
+            self.assertFalse((case_dir / "02-skirt-repaint.png").exists())
 
 
 if __name__ == "__main__":

@@ -360,6 +360,21 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Tamamlanmayan diğer iş / sonraki mantıklı adım**:
   - Kullanıcı onayıyla K17 değişikliklerinin commit edilmesi ve ayrı bir görev olarak kalan `K14` (`slender__skirt-untucked` doku/renk kayması) incelemesi.
 
+## K14 Kontrollü Maske Çapası Deneyi ve Geri Alma — 12 Kasım 2026
+
+- **Başlangıç durumu ve teşhis (`9f533974`, K17 commit `2102129932ea` sonrası)**:
+  - `K14` (`slender + tshirt + tuckTop=false`) senaryosunda siyah eteğin sıcak kahverengi/bronza kaymasının K17 `restore_raw_background` adımından etkilenmediği (`ff710c72` ile `9f533974` arasında `02-skirt-raw.png` SHA-256 özdeş `720d9cc1b033`, etek içi `|raw - repaint| = 0.0000`) ve doğrudan CatVTON `02-skirt-raw.png` üretiminde oluştuğu doğrulandı. Baseline `9f533974` çekirdek etek bölgesi (`cat_y=480..565, x=315..450`): `RGB=[33.85, 30.33, 30.60]`, `R-B=+3.25`, `Lab=(11.78, +1.77, +0.45)`, K16 siyah pileli A-line etek silüeti korunuyor.
+- **Kontrollü deneme (`local_skirt_inputs.py`, `test_local_skirt.py`)**:
+  - Yalnızca `narrow_silhouette and not tuck_top` dalında `waist` çapası merkez gövde sütunlarının `top` alt sınırı medyanına çekildi (`377 -> 354`); buna bağlı olarak `hip` (`489 -> 466`) ve `hem` (`558 -> 535`) değerleri de `23 px` yukarı kaydı.
+  - CPU doğrulamaları geçti: `.venv` `127` test (`2` GPU/CatVTON ortamı atlandı), `.venv-catvton` `42` test (`1` GPU smoke testi atlandı). Kayıtlı `01-top.png` parse çıktılarında yalnızca `slender__skirt-untucked` maskesi değişti (`hard_diff_px=2526`, toplam edit piksel `71487 -> 69161`: üst basende `+100 px`, alt uyluk `y=635..675` bandında `-2426 px`); diğer beş profilin (`slender_tucked`, `medium_tucked`, `medium_untucked`, `fuller_tucked`, `fuller_untucked`) maskelerinde piksel farkı `0` kaldı.
+- **Tek GPU A/B koşusu (`slender__skirt-untucked`, `runs/pilot-20261112T153957Z-749bb9eb`) — BAŞARISIZ**:
+  - Siyah pileli A-line etek yerine açık kahverengi/bej desenli kısa şort üretildi (`02-skirt-raw.png` ve `02-skirt-repaint.png` çekirdek `480..565, 315..450`: `RGB=[170.42, 134.17, 112.97]`, `R-B=+57.44`, `Lab=(58.24, +11.06, +16.92)` vs baseline `9f533974`: `RGB=[33.85, 30.33, 30.60]`, `R-B=+3.25`, `Lab=(11.78, +1.77, +0.45)`).
+  - Kök neden: `waist` değişikliğinin `hip` ve `hem` değerlerini de `23 px` yukarı çekmesi alt maske geometrisini daraltıp kısalttığı (`cat_y=635..675` bandından `2426 px` eksilmesi) için CatVTON UNet üretimini bozup kısa şort moduna itti.
+- **Geri alma, testler ve kapanış durumu**:
+  - K14 denemesinde `ai-worker/app/local_skirt_inputs.py` ve `ai-worker/tests/test_local_skirt.py` dosyalarına eklenen değişiklikler tamamen geri alındı; K16/K17 kabul edilmiş davranışları ve `9f533974` baseline'ı dahil tüm `6` profilin maske geometrisi (`hard_diff_px=0`, `soft_diff_px=0`) korundu.
+  - Geri alma sonrası testler hatasız tamamlandı: `.venv` `125` test (`123` geçti, `2` atlandı), `.venv-catvton` `40` test (`39` geçti, `1` atlandı).
+  - Git çalışma ağacı `.git/HEAD` (`2102129932ea`) ve `.git/index` ile temiz (`modified tracked files: []`, yeni commit oluşturulmadı). K14'ün mevcut hafif sıcak renk kayması bilinen açık konu olarak bırakıldı.
+
 
 
 

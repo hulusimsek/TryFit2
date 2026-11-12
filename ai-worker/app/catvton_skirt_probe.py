@@ -108,9 +108,14 @@ def run(*, annotation_path=None, case_ids=None):
                 raw.save(dest/(identifier+'-raw.png'));primary.save(dest/(identifier+'.png'))
                 case.update(status='completed',raw_output=identifier+'-raw.png',output=identifier+'.png',
                     raw_sha256=sha256(dest/(identifier+'-raw.png')),output_sha256=sha256(dest/(identifier+'.png')),
-                    peak_allocated_gib=round(torch.cuda.max_memory_allocated()/2**30,3))
+                    peak_allocated_gib=round(torch.cuda.max_memory_allocated()/2**30,3),
+                    peak_reserved_gib=round(torch.cuda.max_memory_reserved()/2**30,3),
+                    vae_decode=getattr(model,'last_decode_info',None))
             except Exception as error:
-                case.update(status='failed',error=str(error));raise
+                decode_info=getattr(model,'last_decode_info',None)
+                case.update(status='failed',error=str(error),error_type=type(error).__name__,
+                    error_stage=getattr(model,'last_error_stage',None) or (decode_info or {}).get('error_stage'),
+                    vae_decode=decode_info);raise
             finally:
                 case['elapsed_seconds']=round(time.perf_counter()-start,2);write_json(dest/'run.json',record)
         panels=[('SYNTHETIC TARGET',target)]

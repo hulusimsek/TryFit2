@@ -14,7 +14,43 @@ def letterbox(image, size, *, mask=False):
     return canvas, {'original_size':list(image.size), 'resized_size':list(new_size), 'offset':list(offset), 'canvas_size':list(size)}
 
 
-def target_inputs(image, annotation, size=(768,1024), *, preserve_mask=None):
+def unletterbox(image, transform, *, mask=False):
+    if not isinstance(transform, dict):
+        raise ValueError('Target transform dictionary required')
+
+    def _pair(key, minimum):
+        value = transform.get(key)
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            raise ValueError(f'Invalid transform field: {key}')
+        first, second = value
+        if (isinstance(first, bool) or isinstance(second, bool)
+                or not isinstance(first, int) or not isinstance(second, int)):
+            raise ValueError(f'Transform field {key} must contain integers')
+        if first < minimum or second < minimum:
+            raise ValueError(f'Transform field {key} out of range')
+        return first, second
+
+    orig_w, orig_h = _pair('original_size', 1)
+    res_w, res_h = _pair('resized_size', 1)
+    off_x, off_y = _pair('offset', 0)
+    can_w, can_h = _pair('canvas_size', 1)
+    if image.size != (can_w, can_h):
+        raise ValueError(f'Image size {image.size} does not match transform canvas_size {(can_w, can_h)}')
+    if off_x + res_w > can_w or off_y + res_h > can_h:
+        raise ValueError('Transform crop box exceeds canvas bounds')
+    scale = min(can_w / orig_w, can_h / orig_h)
+    expected_resized = (round(orig_w * scale), round(orig_h * scale))
+    expected_offset = ((can_w - expected_resized[0]) // 2, (can_h - expected_resized[1]) // 2)
+    if (res_w, res_h) != expected_resized or (off_x, off_y) != expected_offset:
+        raise ValueError('Transform geometry does not match letterbox specification')
+    cropped = image.crop((off_x, off_y, off_x + res_w, off_y + res_h))
+    resampling = Image.Resampling.NEAREST if mask else Image.Resampling.LANCZOS
+    return cropped.resize((orig_w, orig_h), resampling)
+
+
+def target_inputs(image, annotation, size=(768,1024), *, preserve_mask=None, blur_radius=9):
+    if isinstance(blur_radius, bool) or not isinstance(blur_radius, (int, float)) or not np.isfinite(blur_radius) or blur_radius < 0:
+        raise ValueError('Invalid blur_radius')
     def polygon_points(values):
         points = np.asarray(values, dtype=float)
         if points.ndim!=2 or points.shape[1]!=2 or len(points)<3 or not np.isfinite(points).all() or (points<0).any() or (points>1).any():
@@ -29,7 +65,7 @@ def target_inputs(image, annotation, size=(768,1024), *, preserve_mask=None):
     hard, mask_transform = letterbox(mask, size, mask=True)
     if transform != mask_transform:
         raise ValueError('Mask and target geometry differ')
-    blurred = hard.filter(ImageFilter.GaussianBlur(9))
+    blurred = hard.filter(ImageFilter.GaussianBlur(blur_radius)) if blur_radius > 0 else hard.copy()
     if preserve_mask is not None:
         protected=np.asarray(preserve_mask)
         if (protected.shape!=(image.height,image.width) or not np.isin(protected,[0,255]).all()

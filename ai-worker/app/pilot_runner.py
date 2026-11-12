@@ -900,9 +900,8 @@ def _run_trousers_case(root, target, top_product, bottom_product, case_dir, pipe
 
 
 def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipeline, case_record, *, synthetic_tech=False):
-    from catvton_inputs import letterbox, target_inputs
     from catvton_skirt_probe import prepare_source
-    from local_skirt_inputs import skirt_inputs
+    from local_skirt_inputs import prepare_skirt_masks
 
     case_dir.mkdir(parents=True, exist_ok=True)
     target_path = local_path(root, target["image"])
@@ -947,7 +946,9 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
         case_record.update(status="parse_blocked", upper_elapsed_seconds=elapsed, error=reason)
         return
     try:
-        annotation, preserve, background_alpha = skirt_inputs(labels, tuck_top=bool(case_record["tuck_top"]))
+        target_canvas, hard, soft, preserve, overlay, annotation, transform = prepare_skirt_masks(
+            top_image, labels, tuck_top=bool(case_record["tuck_top"])
+        )
     except ValueError as error:
         _cleanup_stage2_artifacts(case_dir, final_status="parse_blocked", reason=str(error))
         case_record.update(
@@ -958,14 +959,6 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
         )
         return
 
-    target_canvas, hard, soft, _, transform = target_inputs(top_image, annotation, preserve_mask=preserve)
-    fade, _ = letterbox(background_alpha, (768, 1024), mask=True)
-    soft = Image.fromarray(np.rint(np.asarray(soft).astype(float) * np.asarray(fade) / 255).astype("uint8"))
-    hard = Image.fromarray((np.asarray(soft) >= 128).astype("uint8") * 255)
-    preview = np.array(target_canvas)
-    edited = np.asarray(hard) > 0
-    preview[edited] = (preview[edited] * 0.5 + np.array([0, 180, 120]) * 0.5).astype("uint8")
-    overlay = Image.fromarray(preview)
     condition, source_meta = prepare_source(root, skirt_product)
 
     for name, image in (
@@ -1114,6 +1107,23 @@ def run_fashn_phase(root, run_dir, *, fashn_factory=None, synthetic_tech=False):
     return summary
 
 
+def _catvton_telemetry_fields(outcome):
+    if not isinstance(outcome, dict):
+        return {}
+    fields = {}
+    for src_key, dst_key in (
+        ("vae_decode", "catvton_vae_decode"),
+        ("peak_allocated_gib", "catvton_peak_allocated_gib"),
+        ("peak_reserved_gib", "catvton_peak_reserved_gib"),
+        ("error_stage", "catvton_error_stage"),
+        ("error_type", "catvton_error_type"),
+    ):
+        value = outcome.get(src_key)
+        if value is not None:
+            fields[dst_key] = value
+    return fields
+
+
 def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None, synthetic_tech=False):
     """Execute Phase 2 CatVTON skirt inference on prepared pilot cases."""
     root = Path(root).resolve()
@@ -1151,15 +1161,14 @@ def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None, synthetic_tech=Fals
                 continue
             case_dir = run_dir / "cases" / case["id"]
             try:
-                local_skirt.verify_prepared(case_dir)
+                handoff_record = local_skirt.verify_prepared(case_dir)
                 lower_fn(case_dir)
                 outcome = json.loads((case_dir / "catvton-outcome.json").read_text(encoding="utf-8"))
                 if (outcome.get("status") != "completed"
                         or sha256(case_dir / "02-skirt-repaint.png") != outcome.get("output_sha256")
                         or sha256(case_dir / "skirt-handoff.json") != outcome.get("handoff_sha256")):
                     raise ValueError("CatVTON skirt output verification failed.")
-                result_out = case_dir / "result.png"
-                shutil.copy2(case_dir / "02-skirt-repaint.png", result_out)
+                result_out = local_skirt.save_final_result(case_dir, handoff_record, case_dir / "result.png")
                 case.update(
                     status="completed",
                     catvton_executed=True,
@@ -1167,6 +1176,7 @@ def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None, synthetic_tech=Fals
                     lower_elapsed_seconds=outcome.get("elapsed_seconds"),
                     result=result_out.relative_to(run_dir).as_posix(),
                     output_sha256=sha256(result_out),
+                    **_catvton_telemetry_fields(outcome),
                 )
                 if summary.get("single_case_mode") and summary.get("execution_mode") == SINGLE_CASE_SKIRT_MODE:
                     summary["catvton_executed"] = True
@@ -1188,8 +1198,20 @@ def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None, synthetic_tech=Fals
                 except Exception as error:
                     case["comparison_error"] = str(error)
             except Exception as error:
+                failed_outcome = None
+                outcome_path = case_dir / "catvton-outcome.json"
+                if outcome_path.is_file():
+                    try:
+                        failed_outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        failed_outcome = None
                 _cleanup_stage2_artifacts(case_dir, final_status="failed", reason=str(error))
-                case.update(status="failed", error=str(error), traceback=traceback.format_exc())
+                case.update(
+                    status="failed",
+                    error=str(error),
+                    traceback=traceback.format_exc(),
+                    **_catvton_telemetry_fields(failed_outcome),
+                )
                 _refresh_summary(root, run_dir, summary)
                 raise
             finally:

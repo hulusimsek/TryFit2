@@ -298,8 +298,14 @@ def _fake_catvton_outcome(case_dir: Path):
     handoff_sha = sha256(case_dir / "skirt-handoff.json")
     repaint = case_dir / "02-skirt-repaint.png"
     raw = case_dir / "02-skirt-raw.png"
-    Image.new("RGB", (60, 80), (15, 15, 15)).save(raw)
-    Image.new("RGB", (60, 80), (18, 18, 18)).save(repaint)
+    target_path = case_dir / "cat-target.png"
+    if target_path.is_file():
+        with Image.open(target_path) as target_img:
+            canvas_size = target_img.size
+    else:
+        canvas_size = (768, 1024)
+    Image.new("RGB", canvas_size, (15, 15, 15)).save(raw)
+    Image.new("RGB", canvas_size, (18, 18, 18)).save(repaint)
     (case_dir / "catvton-outcome.json").write_text(
         json.dumps(
             {
@@ -1608,6 +1614,169 @@ class SyntheticTechPilotTests(unittest.TestCase):
         self.assertIs(blocked_summary["catvton_executed"], False)
         self.assertEqual(blocked_summary["cases"][0]["status"], "parse_blocked")
         self.assertFalse((run_dir_blocked / "cases" / "slender__skirt-untucked" / "result.png").exists())
+
+    def test_catvton_lower_unletterboxes_576x864_skirt_result_and_removes_220_strips(self):
+        slender = next(t for t in self.manifest["targets"] if t["id"] == "slender")
+        slender_img = self.root / slender["image"]
+        Image.new("RGB", (576, 864), (210, 100, 100)).save(slender_img)
+        slender["image_sha256"] = sha256(slender_img)
+        self.manifest_path.write_text(json.dumps(self.manifest, indent=2), encoding="utf-8")
+
+        def letterboxed_catvton(case_dir: Path):
+            handoff_sha = sha256(case_dir / "skirt-handoff.json")
+            raw_img = Image.new("RGB", (768, 1024), (220, 220, 220))
+            raw_img.paste(Image.new("RGB", (683, 1024), (20, 25, 30)), (42, 0))
+            repaint_img = Image.new("RGB", (768, 1024), (220, 220, 220))
+            repaint_img.paste(Image.new("RGB", (683, 1024), (35, 45, 55)), (42, 0))
+            raw_path = case_dir / "02-skirt-raw.png"
+            repaint_path = case_dir / "02-skirt-repaint.png"
+            raw_img.save(raw_path)
+            repaint_img.save(repaint_path)
+            (case_dir / "catvton-outcome.json").write_text(
+                json.dumps(
+                    {
+                        "status": "completed",
+                        "raw_sha256": sha256(raw_path),
+                        "output_sha256": sha256(repaint_path),
+                        "handoff_sha256": handoff_sha,
+                        "elapsed_seconds": 0.05,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        run_dir = pilot_runner.run_pilot(
+            self.root,
+            self.manifest_path,
+            synthetic_tech=True,
+            case_id="slender__skirt-tucked",
+            fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+            catvton_runner=lambda r, d: pilot_runner.run_catvton_lower(
+                r, d, skirt_lower_fn=letterboxed_catvton, synthetic_tech=True
+            ),
+        )
+        case_dir = run_dir / "cases/slender__skirt-tucked"
+        with Image.open(case_dir / "01-top.png") as top_im, Image.open(case_dir / "02-skirt-raw.png") as raw_im, Image.open(case_dir / "02-skirt-repaint.png") as rep_im, Image.open(case_dir / "result.png") as res_im:
+            self.assertEqual(top_im.size, (576, 864))
+            self.assertEqual(raw_im.size, (768, 1024))
+            self.assertEqual(rep_im.size, (768, 1024))
+            self.assertEqual(res_im.size, (576, 864))
+            res_arr = np.asarray(res_im)
+            self.assertFalse(np.all(res_arr == (220, 220, 220), axis=2).any())
+            self.assertEqual(res_im.getpixel((0, 400)), (35, 45, 55))
+            self.assertEqual(res_im.getpixel((575, 400)), (35, 45, 55))
+        self.assertTrue((case_dir / "comparison.jpg").is_file())
+        summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["cases"][0]["output_sha256"], sha256(case_dir / "result.png"))
+
+    def test_catvton_lower_rejects_invalid_target_transform_without_writing_result(self):
+        def tamper_transform_and_run(root, run_dir):
+            handoff_path = run_dir / "cases/slender__skirt-tucked/skirt-handoff.json"
+            handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+            handoff["target_transform"] = {"original_size": [60, 80]}  # missing canvas/resized/offset
+            handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
+            pilot_runner.run_catvton_lower(
+                root,
+                run_dir,
+                skirt_lower_fn=_fake_catvton_outcome,
+                synthetic_tech=True,
+            )
+
+        with self.assertRaises(ValueError):
+            pilot_runner.run_pilot(
+                self.root,
+                self.manifest_path,
+                synthetic_tech=True,
+                case_id="slender__skirt-tucked",
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                catvton_runner=tamper_transform_and_run,
+            )
+        run_dir = next((self.root / "runs").glob("pilot-*"))
+        case_dir = run_dir / "cases/slender__skirt-tucked"
+        self.assertFalse((case_dir / "result.png").exists())
+        summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["cases"][0]["status"], "failed")
+
+    def test_catvton_lower_forwards_vae_decode_and_failure_telemetry_to_pilot_summary(self):
+        def catvton_with_telemetry(case_dir: Path):
+            handoff_sha = sha256(case_dir / "skirt-handoff.json")
+            raw_path = case_dir / "02-skirt-raw.png"
+            repaint_path = case_dir / "02-skirt-repaint.png"
+            Image.new("RGB", (768, 1024), (20, 25, 30)).save(raw_path)
+            Image.new("RGB", (768, 1024), (35, 45, 55)).save(repaint_path)
+            (case_dir / "catvton-outcome.json").write_text(
+                json.dumps(
+                    {
+                        "status": "completed",
+                        "raw_sha256": sha256(raw_path),
+                        "output_sha256": sha256(repaint_path),
+                        "handoff_sha256": handoff_sha,
+                        "elapsed_seconds": 0.12,
+                        "peak_allocated_gib": 3.21,
+                        "peak_reserved_gib": 3.55,
+                        "vae_decode": {
+                            "mode": "untiled",
+                            "unet_offloaded": True,
+                            "oom_fallback": False,
+                            "initial_tiling": True,
+                            "final_tiling": True,
+                            "error_stage": None,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        run_dir = pilot_runner.run_pilot(
+            self.root,
+            self.manifest_path,
+            synthetic_tech=True,
+            case_id="slender__skirt-tucked",
+            fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+            catvton_runner=lambda r, d: pilot_runner.run_catvton_lower(
+                r, d, skirt_lower_fn=catvton_with_telemetry, synthetic_tech=True
+            ),
+        )
+        summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        case_rec = summary["cases"][0]
+        self.assertEqual(case_rec["catvton_peak_allocated_gib"], 3.21)
+        self.assertEqual(case_rec["catvton_peak_reserved_gib"], 3.55)
+        self.assertEqual(case_rec["catvton_vae_decode"]["mode"], "untiled")
+
+        def failing_catvton_with_telemetry(case_dir: Path):
+            (case_dir / "catvton-outcome.json").write_text(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "error": "OOM on fallback",
+                        "error_type": "OutOfMemoryError",
+                        "error_stage": "tiled_fallback_decode",
+                        "vae_decode": {"mode": "tiled_fallback", "oom_fallback": True, "error_stage": "tiled_fallback_decode"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            raise RuntimeError("OOM on fallback")
+
+        with self.assertRaises(RuntimeError):
+            pilot_runner.run_pilot(
+                self.root,
+                self.manifest_path,
+                synthetic_tech=True,
+                case_id="slender__skirt-untucked",
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                catvton_runner=lambda r, d: pilot_runner.run_catvton_lower(
+                    r, d, skirt_lower_fn=failing_catvton_with_telemetry, synthetic_tech=True
+                ),
+            )
+        failed_run = sorted((self.root / "runs").glob("pilot-*"), key=lambda p: p.stat().st_mtime)[-1]
+        failed_summary = json.loads((failed_run / "pilot-summary.json").read_text(encoding="utf-8"))
+        failed_case = failed_summary["cases"][0]
+        self.assertEqual(failed_case["status"], "failed")
+        self.assertEqual(failed_case["catvton_error_stage"], "tiled_fallback_decode")
+        self.assertEqual(failed_case["catvton_error_type"], "OutOfMemoryError")
+        self.assertTrue(failed_case["catvton_vae_decode"]["oom_fallback"])
+        self.assertFalse((failed_run / "cases/slender__skirt-untucked/catvton-outcome.json").exists())
 
 
 if __name__ == "__main__":

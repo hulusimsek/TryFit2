@@ -9,9 +9,9 @@ import numpy as np
 from PIL import Image
 from experiment import load_rgb,local_path,sha256,write_json
 from outfit import validate_selection
-from catvton_inputs import target_inputs,letterbox
+from catvton_inputs import unletterbox
 from catvton_skirt_probe import prepare_source
-from local_skirt_inputs import skirt_inputs
+from local_skirt_inputs import prepare_skirt_masks
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -47,14 +47,7 @@ def upper(directory):
         seed=42,num_timesteps=30,guidance_scale=1.5,segmentation_free=True,num_samples=1).images[0]
     result.save(directory/'01-top.png')
     labels=model.hp_model.predict(np.asarray(result))
-    annotation,preserve,background_alpha=skirt_inputs(labels,tuck_top=selection.get('tuck_top',False))
-    target,hard,soft,overlay,transform=target_inputs(result,annotation,preserve_mask=preserve)
-    fade,_=letterbox(background_alpha,(768,1024),mask=True)
-    soft=Image.fromarray(np.rint(np.asarray(soft).astype(float)*np.asarray(fade)/255).astype('uint8'))
-    hard=Image.fromarray((np.asarray(soft)>=128).astype('uint8')*255)
-    preview=np.array(target);edited=np.asarray(hard)>0
-    preview[edited]=(preview[edited]*.5+np.array([0,180,120])*.5).astype('uint8')
-    overlay=Image.fromarray(preview)
+    target,hard,soft,preserve,overlay,annotation,transform=prepare_skirt_masks(result,labels,tuck_top=selection.get('tuck_top',False))
     condition,source=prepare_source(ROOT,skirt)
     for name,image in [('cat-target.png',target),('cat-hard-mask.png',hard),('cat-soft-mask.png',soft),
                        ('cat-preserve.png',preserve),('cat-mask-preview.jpg',overlay),('cat-condition.png',condition)]:
@@ -69,29 +62,63 @@ def upper(directory):
 def lower(directory):
     import torch
     from catvton_probe import pipeline
-    record=verify_prepared(directory)
+    verify_prepared(directory)
     weights=ROOT/'ai-worker/models/catvton'
     provenance=json.loads((weights/'provenance.json').read_text(encoding='utf-8'))
     for item in provenance['files']:
         if sha256(weights/item['relative_path'])!=item['sha256']:raise ValueError('CatVTON weights changed')
-    model=pipeline(weights)
-    from utils import repaint_result
-    start=time.perf_counter();torch.manual_seed(42);np.random.seed(42)
-    target=load_rgb(directory/'cat-target.png')
-    with Image.open(directory/'cat-soft-mask.png') as opened:mask=opened.copy()
-    raw=model(image=target,condition_image=load_rgb(directory/'cat-condition.png'),mask=mask,
-        num_inference_steps=50,guidance_scale=2.5,height=1024,width=768,
-        generator=torch.Generator(device='cuda').manual_seed(42),eta=1.0)[0]
-    primary=repaint_result(raw,target,mask)
-    raw.save(directory/'02-skirt-raw.png');primary.save(directory/'02-skirt-repaint.png')
-    write_json(directory/'catvton-outcome.json',{'status':'completed','raw_sha256':sha256(directory/'02-skirt-raw.png'),
-        'output_sha256':sha256(directory/'02-skirt-repaint.png'),'elapsed_seconds':round(time.perf_counter()-start,2),
-        'model_provenance':provenance,'settings':{'seed':42,'steps':50,'guidance':2.5,'eta':1.0},
-        'method':'Actual CatVTON inference; repaint copies target at zero edit alpha','handoff_sha256':sha256(directory/'skirt-handoff.json')})
+    use_cuda=torch.cuda.is_available()
+    def _cuda_gib(fn_name):
+        if not use_cuda:return None
+        fn=getattr(torch.cuda,fn_name,None)
+        if not callable(fn):return None
+        try:return round(fn()/2**30,3)
+        except Exception:return None
+    start=time.perf_counter()
+    model=None
+    try:
+        model=pipeline(weights)
+        from utils import repaint_result
+        torch.manual_seed(42);np.random.seed(42)
+        target=load_rgb(directory/'cat-target.png')
+        with Image.open(directory/'cat-soft-mask.png') as opened:mask=opened.copy()
+        if use_cuda:
+            torch.cuda.reset_peak_memory_stats();torch.cuda.synchronize()
+        generator=torch.Generator(device='cuda' if use_cuda else 'cpu').manual_seed(42)
+        raw=model(image=target,condition_image=load_rgb(directory/'cat-condition.png'),mask=mask,
+            num_inference_steps=50,guidance_scale=2.5,height=1024,width=768,
+            generator=generator,eta=1.0)[0]
+        if use_cuda:
+            torch.cuda.synchronize()
+        primary=repaint_result(raw,target,mask)
+        raw.save(directory/'02-skirt-raw.png');primary.save(directory/'02-skirt-repaint.png')
+        write_json(directory/'catvton-outcome.json',{'status':'completed','raw_sha256':sha256(directory/'02-skirt-raw.png'),
+            'output_sha256':sha256(directory/'02-skirt-repaint.png'),'elapsed_seconds':round(time.perf_counter()-start,2),
+            'peak_allocated_gib':_cuda_gib('max_memory_allocated'),'peak_reserved_gib':_cuda_gib('max_memory_reserved'),
+            'vae_decode':getattr(model,'last_decode_info',None),
+            'model_provenance':provenance,'settings':{'seed':42,'steps':50,'guidance':2.5,'eta':1.0},
+            'method':'Actual CatVTON inference; repaint copies target at zero edit alpha','handoff_sha256':sha256(directory/'skirt-handoff.json')})
+    except Exception as error:
+        decode_info=getattr(model,'last_decode_info',None)
+        error_stage=('pipeline_init' if model is None else
+            (getattr(model,'last_error_stage',None) or (decode_info or {}).get('error_stage') or 'catvton_inference'))
+        write_json(directory/'catvton-outcome.json',{'status':'failed','error':str(error),'error_type':type(error).__name__,
+            'error_stage':error_stage,'elapsed_seconds':round(time.perf_counter()-start,2),
+            'peak_allocated_gib':_cuda_gib('max_memory_allocated'),'peak_reserved_gib':_cuda_gib('max_memory_reserved'),
+            'vae_decode':decode_info,'handoff_sha256':sha256(directory/'skirt-handoff.json')})
+        raise
+
+
+def save_final_result(directory, record, destination=None):
+    """Un-letterbox 02-skirt-repaint.png back to the original target size using target_transform."""
+    out_path = Path(destination) if destination is not None else directory / 'result.png'
+    with Image.open(directory / '02-skirt-repaint.png') as repaint:
+        final_image = unletterbox(repaint.convert('RGB'), record.get('target_transform'))
+    final_image.save(out_path)
+    return out_path
 
 
 def run(directory):
-    import shutil
     directory=checked_directory(directory)
     cat_python=ROOT/'.venv-catvton/Scripts/python.exe'
     if not cat_python.is_file():raise FileNotFoundError('CatVTON research environment unavailable')
@@ -107,7 +134,7 @@ def run(directory):
     outcome=json.loads((directory/'catvton-outcome.json').read_text(encoding='utf-8'))
     if (outcome['status']!='completed' or sha256(directory/'02-skirt-repaint.png')!=outcome['output_sha256']
             or sha256(directory/'skirt-handoff.json')!=outcome['handoff_sha256']):raise ValueError('Skirt output verification failed')
-    shutil.copy2(directory/'02-skirt-repaint.png',directory/'result.png')
+    save_final_result(directory, record)
     selection=json.loads((directory/'selection.json').read_text(encoding='utf-8'))
     write_json(directory/'outcome.json',{'status':'completed','runDirectory':directory.relative_to(ROOT).as_posix(),
         'outputSha256':sha256(directory/'result.png'),'engine':'fashn-catvton-skirt-v1','outputCompositing':True,

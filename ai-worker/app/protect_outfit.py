@@ -43,27 +43,36 @@ def preservation_metrics(first, second, result, binary):
     return metrics
 
 
-def run(selection_path=None, *, pipeline=None, extra_metadata=None, bottom_segmentation_free=True):
-    root = Path(__file__).resolve().parents[2]
-    selection_path = Path(selection_path or root / "evaluation/manifests/first-outfit.protected.json")
-    selection = json.loads(selection_path.read_text(encoding="utf-8"))
-    items = validate_selection(selection, root)
-    upper = next(item for item in items if item["category"] == "tops")
-    lower = next(item for item in items if item["category"] == "bottoms")
-    dest = root / "runs" / ("protected-outfit-" + uuid.uuid4().hex[:8])
-    dest.mkdir()
-    target = root / selection["avatar"]["image"]
+def compose_outfit(
+    root,
+    target,
+    upper,
+    lower,
+    dest,
+    *,
+    pipeline=None,
+    extra_metadata=None,
+    bottom_segmentation_free=True,
+    selection_record=None,
+    selection_sha256=None,
+    avatar_profile=None,
+):
+    """Run two-stage upper-then-lower FASHN outfit composition into `dest`."""
+    root = Path(root).resolve()
+    dest = Path(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+    target = Path(target)
     upper_path, lower_path = (root / item["image"] for item in (upper, lower))
     settings = dict(num_timesteps=30, seed=42, guidance_scale=1.5, segmentation_free=True, num_samples=1)
     bottom_settings = {**settings, "segmentation_free": bottom_segmentation_free}
     record = {"status": "initializing", "quality_status": "not_reviewed", "settings": settings,
               "steps": [], "input_sha256": {name: sha256(p) for name, p in [("avatar", target), ("tops", upper_path), ("bottoms", lower_path)]},
-              "selection_sha256": sha256(selection_path), "avatar_profile": selection["avatar"],
+              "selection_sha256": selection_sha256, "avatar_profile": avatar_profile,
               "method": "VTON top first, VTON bottom second, semantic preservation of top/face/hair/arms/hands with 3x3 edge feather"}
     record["stage_settings"] = {"top": settings, "bottom": bottom_settings}
     if extra_metadata is not None:
         record["experiment_metadata"] = extra_metadata
-    write_json(dest / "selection.json", selection)
+    write_json(dest / "selection.json", selection_record if selection_record is not None else {"avatar": avatar_profile, "items": [upper, lower]})
     write_json(dest / "run.json", record)
     try:
         pipeline = pipeline or create_pipeline(root / "ai-worker/models")
@@ -94,6 +103,30 @@ def run(selection_path=None, *, pipeline=None, extra_metadata=None, bottom_segme
         write_json(dest / "run.json", record)
         print(f"RUN_DIR={dest}", flush=True)
     return dest
+
+
+def run(selection_path=None, *, pipeline=None, extra_metadata=None, bottom_segmentation_free=True):
+    root = Path(__file__).resolve().parents[2]
+    selection_path = Path(selection_path or root / "evaluation/manifests/first-outfit.protected.json")
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    items = validate_selection(selection, root)
+    upper = next(item for item in items if item["category"] == "tops")
+    lower = next(item for item in items if item["category"] == "bottoms")
+    dest = root / "runs" / ("protected-outfit-" + uuid.uuid4().hex[:8])
+    dest.mkdir()
+    return compose_outfit(
+        root,
+        root / selection["avatar"]["image"],
+        upper,
+        lower,
+        dest,
+        pipeline=pipeline,
+        extra_metadata=extra_metadata,
+        bottom_segmentation_free=bottom_segmentation_free,
+        selection_record=selection,
+        selection_sha256=sha256(selection_path),
+        avatar_profile=selection["avatar"],
+    )
 
 
 if __name__ == "__main__":

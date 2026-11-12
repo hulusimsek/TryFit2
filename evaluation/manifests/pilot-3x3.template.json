@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "purpose": "Three real adult women x three supported flows (top, trousers, skirt) pilot readiness validation; never the >=80% general quality gate",
+  "next_stage_target": "36 + 24 = 60 generated balanced test set after pilot sign-off",
+  "targets": [
+    {
+      "id": "pilot-target-1",
+      "image": "data/pilot/target-1.jpg",
+      "image_sha256": "",
+      "adult_confirmed": false,
+      "consent_confirmed": false,
+      "consent_record_id": "",
+      "consent_scope": "closed_local_rnd_pilot_only",
+      "retention_until": "",
+      "body_group": "slender",
+      "measured": false,
+      "pose_notes": "",
+      "footwear_notes": "",
+      "current_clothing_notes": "",
+      "lighting_background_notes": ""
+    },
+    {
+      "id": "pilot-target-2",
+      "image": "data/pilot/target-2.jpg",
+      "image_sha256": "",
+      "adult_confirmed": false,
+      "consent_confirmed": false,
+      "consent_record_id": "",
+      "consent_scope": "closed_local_rnd_pilot_only",
+      "retention_until": "",
+      "body_group": "medium",
+      "measured": false,
+      "pose_notes": "",
+      "footwear_notes": "",
+      "current_clothing_notes": "",
+      "lighting_background_notes": ""
+    },
+    {
+      "id": "pilot-target-3",
+      "image": "data/pilot/target-3.jpg",
+      "image_sha256": "",
+      "adult_confirmed": false,
+      "consent_confirmed": false,
+      "consent_record_id": "",
+      "consent_scope": "closed_local_rnd_pilot_only",
+      "retention_until": "",
+      "body_group": "fuller",
+      "measured": false,
+      "pose_notes": "",
+      "footwear_notes": "",
+      "current_clothing_notes": "",
+      "lighting_background_notes": ""
+    }
+  ],
+  "products": [
+    {
+      "id": "pilot-top",
+      "label": "",
+      "flow_role": "top",
+      "category": "tops",
+      "garment_photo_type": "model",
+      "image": "data/pilot/top-product.jpg",
+      "image_sha256": "",
+      "product_url": "",
+      "source_image_url": "",
+      "photo_origin": "real_model_photo",
+      "listing_ai_generated_label_observed": false,
+      "source_notes": ""
+    },
+    {
+      "id": "pilot-trousers",
+      "label": "",
+      "flow_role": "trousers",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "image": "data/pilot/trousers-product.jpg",
+      "image_sha256": "",
+      "product_url": "",
+      "source_image_url": "",
+      "photo_origin": "real_model_photo",
+      "listing_ai_generated_label_observed": false,
+      "source_notes": ""
+    },
+    {
+      "id": "pilot-skirt",
+      "label": "",
+      "flow_role": "skirt",
+      "category": "bottoms",
+      "garment_photo_type": "model",
+      "image": "data/pilot/skirt-product.jpg",
+      "image_sha256": "",
+      "product_url": "",
+      "source_image_url": "",
+      "photo_origin": "real_model_photo",
+      "listing_ai_generated_label_observed": false,
+      "source_notes": ""
+    }
+  ],
+  "flows": [
+    {
+      "id": "top",
+      "flow_type": "top_only",
+      "top_id": "pilot-top"
+    },
+    {
+      "id": "trousers",
+      "flow_type": "top_plus_trousers",
+      "top_id": "pilot-top",
+      "bottom_id": "pilot-trousers"
+    },
+    {
+      "id": "skirt-tucked",
+      "flow_type": "top_plus_skirt",
+      "top_id": "pilot-top",
+      "bottom_id": "pilot-skirt",
+      "tuck_top": true
+    }
+  ],
+  "optional_controls": [
+    {
+      "id": "skirt-untucked",
+      "flow_type": "top_plus_skirt",
+      "top_id": "pilot-top",
+      "bottom_id": "pilot-skirt",
+      "tuck_top": false
+    }
+  ]
+}

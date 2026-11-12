@@ -443,6 +443,14 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
   - Gerçek 3×3 insan pilotu izinli fotoğraflar temin edilene kadar beklemede kalmaya devam etmektedir.
   - Sonraki mantıklı adım: İki değerlendiricinin `review-template.csv` çıktısını bağımsız olarak puanlaması ve sonuçların `pilot_evaluator.py` ile sentezlenmesi.
 
+## Kalite Kabul Kuralı Güncellemesi (Kaynak Ürün Kimliği ve Karakteristik Detaylar) — 13 Kasım 2026
+
+- **Belgelenen Karar (D15)**:
+  - Sanal deneme çıktısının yalnızca kıyafet kategorisi ve genel rengi doğru olduğu için başarılı sayılamayacağı; kaynak kıyafette fiilen bulunan karakteristik özelliklerin (renk ve desen, kesim ve siluet, kemer/toka gibi aksesuar detayları, pileler ve kumaş dokusu, özgün tasarım özellikleri) korunmasının zorunlu olduğu kalite kabul kararı olarak [decisions.md](decisions.md) (D15) ve [evaluation-protocol.md](evaluation-protocol.md) içine işlendi.
+  - Kaynak üründe fiilen bulunmayan detayların zorunlu tutulmayacağı, kararın geçmiş GPU pilot sonuçlarını geriye dönük olarak otomatik değiştirmediği ve mevcut sonuçların yeni kriterle yeniden değerlendirilebileceği belgelendi.
+- **Sonraki Mantıklı Adım**:
+  - Gemini ve Antigravity tarafından yapılan iki ayrı AI görsel değerlendirmesinin karşılaştırması tamamlanmış olup, bu incelemeler kesinlikle bir insan uzman değerlendirmesi değildir. Nihai karar ve olası pipeline değişiklikleri öncesinde insan uzman doğrulaması şarttır.
+
 
 
 

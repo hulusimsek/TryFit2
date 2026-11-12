@@ -1214,6 +1214,154 @@ class SyntheticTechPilotTests(unittest.TestCase):
             self.assertFalse((case_dir / "result.png").exists())
             self.assertFalse((case_dir / "02-skirt-repaint.png").exists())
 
+    def test_single_case_slender_top_runs_only_selected_case_and_skips_catvton(self):
+        fake_fashn = FakeFashnPipeline()
+        catvton_calls = []
+
+        def forbid_catvton(root, run_dir):
+            catvton_calls.append((root, run_dir))
+            raise AssertionError("CatVTON must never be called in single-case mode.")
+
+        run_dir = pilot_runner.run_pilot(
+            self.root,
+            self.manifest_path,
+            synthetic_tech=True,
+            case_id="slender__top",
+            fashn_factory=lambda _r, _p: fake_fashn,
+            catvton_runner=forbid_catvton,
+        )
+        self.assertEqual(catvton_calls, [])
+        self.assertEqual(len(fake_fashn.calls), 1)
+        self.assertEqual(fake_fashn.calls[0]["category"], "tops")
+        self.assertEqual(fake_fashn.hp_model.calls, 1)
+
+        summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["status"], "completed")
+        self.assertEqual(summary["counts"], {"completed": 1})
+        self.assertIs(summary["single_case_mode"], True)
+        self.assertEqual(summary["execution_mode"], "single_case_fashn_only")
+        self.assertEqual(summary["selected_case_id"], "slender__top")
+        self.assertEqual(summary["selected_target_id"], "slender")
+        self.assertEqual(summary["selected_flow_id"], "top")
+        self.assertEqual(summary["selected_product_id"], "tshirt")
+        self.assertIs(summary["fashn_only"], True)
+        self.assertIs(summary["catvton_executed"], False)
+        self.assertIs(summary["catvton_skipped"], True)
+        self.assertIs(summary["settings"]["catvton"]["skipped"], True)
+        self.assertEqual(summary["pilot_mode"], "synthetic_technical_rehearsal")
+        self.assertIs(summary["generalization_evidence"], False)
+
+        # Preflight and case directories must only contain slender and slender__top.
+        preflight = json.loads((run_dir / "parsing-preflight.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(preflight.keys()), {"slender"})
+        self.assertEqual([p.name for p in (run_dir / "cases").iterdir()], ["slender__top"])
+        self.assertEqual(len(summary["cases"]), 1)
+        case = summary["cases"][0]
+        self.assertEqual(case["id"], "slender__top")
+        self.assertEqual(case["target_id"], "slender")
+        self.assertEqual(case["flow_id"], "top")
+        self.assertEqual(case["flow_type"], "top_only")
+        self.assertEqual(case["top_id"], "tshirt")
+        self.assertIsNone(case["bottom_id"])
+        self.assertIs(case["single_case_mode"], True)
+        self.assertIs(case["catvton_skipped"], True)
+
+        case_dir = run_dir / "cases" / "slender__top"
+        self.assertTrue((case_dir / "result.png").is_file())
+        self.assertTrue((case_dir / "comparison.jpg").is_file())
+        selection = json.loads((case_dir / "selection.json").read_text(encoding="utf-8"))
+        self.assertEqual(selection["target"]["id"], "slender")
+        self.assertEqual([item["id"] for item in selection["items"]], ["tshirt"])
+        self.assertEqual(selection["flow_type"], "top_only")
+        self.assertIs(selection["single_case_mode"], True)
+        self.assertEqual(selection["execution_mode"], "single_case_fashn_only")
+        self.assertIs(selection["catvton_skipped"], True)
+
+        with (run_dir / "review-template.csv").open("r", newline="", encoding="utf-8") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["id"], "slender__top")
+        self.assertEqual(rows[0]["case_status"], "completed")
+        self.assertEqual(rows[0]["pilot_mode"], "synthetic_technical_rehearsal")
+        self.assertEqual(rows[0]["generalization_evidence"], "false")
+        self.assertIn("catvton_skipped=true", rows[0]["notes"])
+
+        # Direct or subprocess CatVTON invocation on a single-case run_dir must be rejected.
+        with self.assertRaises(ValueError):
+            pilot_runner.run_catvton_lower(
+                self.root,
+                run_dir,
+                skirt_lower_fn=_fake_catvton_outcome,
+                synthetic_tech=True,
+            )
+
+        # Subprocess orchestrator must invoke fashn-phase only and never invoke catvton-lower.
+        sub_cmds = []
+
+        def fake_sub(cmd, check=True, cwd=None):
+            sub_cmds.append(list(cmd))
+            if "fashn-phase" in cmd:
+                pilot_runner.run_fashn_phase(
+                    self.root,
+                    cmd[cmd.index("--run-dir") + 1],
+                    fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                    synthetic_tech=("--synthetic-tech" in cmd),
+                )
+
+        with patch.object(pilot_runner, "_require_venv_python", return_value=Path(sys.executable)):
+            pilot_runner.run_pilot(
+                self.root,
+                self.manifest_path,
+                synthetic_tech=True,
+                case_id="slender__top",
+                run_phase1_in_subprocess=True,
+                subprocess_runner=fake_sub,
+            )
+        self.assertEqual(len(sub_cmds), 1)
+        self.assertIn("fashn-phase", sub_cmds[0])
+        self.assertIn("--synthetic-tech", sub_cmds[0])
+
+    def test_single_case_invalid_or_ambiguous_selectors_rejected(self):
+        before_runs = set((self.root / "runs").glob("pilot-*"))
+        for bad_case in ("", "   ", "slender", "nonexistent__top", "slender__skirt-tucked", "medium__skirt-untucked"):
+            with self.assertRaises(ValueError):
+                pilot_runner.run_pilot(
+                    self.root,
+                    self.manifest_path,
+                    synthetic_tech=True,
+                    case_id=bad_case,
+                    fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                    catvton_runner=_fake_catvton_synthetic_success,
+                )
+        # --case without --synthetic-tech must fail and leave real pilot behavior untouched.
+        with self.assertRaises(ValueError):
+            pilot_runner.run_pilot(
+                self.root,
+                self.real_manifest_path,
+                synthetic_tech=False,
+                case_id="pilot-target-1__top",
+                fashn_factory=lambda _r, _p: FakeFashnPipeline(),
+                catvton_runner=_fake_catvton_success,
+            )
+        # Duplicate case IDs in expanded list must raise ambiguity error.
+        with self.assertRaises(ValueError):
+            pilot_runner._select_single_case(
+                [
+                    {"id": "dup__top", "flow_type": "top_only"},
+                    {"id": "dup__top", "flow_type": "top_only"},
+                ],
+                "dup__top",
+            )
+        # Invalid selectors must not leave stray pilot-* run directories behind.
+        self.assertEqual(set((self.root / "runs").glob("pilot-*")), before_runs)
+        # CLI invalid --case exits cleanly with code 1.
+        self.assertEqual(
+            pilot_runner.main(
+                ["run", "--root", str(self.root), "--manifest", str(self.manifest_path), "--synthetic-tech", "--case", "invalid__case"]
+            ),
+            1,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

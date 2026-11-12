@@ -428,6 +428,17 @@ def _assert_mode_consistency(manifest, summary=None, *, synthetic_tech=False):
             or summary.get("effective_subject_diversity") != 1
         ):
             raise ValueError("Run directory pilot-summary.json is not a valid synthetic technical rehearsal.")
+        if summary is not None and summary.get("single_case_mode"):
+            cases = summary.get("cases") or []
+            selected_id = summary.get("selected_case_id")
+            if (
+                summary.get("execution_mode") != "single_case_fashn_only"
+                or summary.get("catvton_skipped") is not True
+                or len(cases) != 1
+                or cases[0].get("id") != selected_id
+                or cases[0].get("flow_type") != "top_only"
+            ):
+                raise ValueError("Run directory pilot-summary.json has an invalid single-case FASHN-only configuration.")
         return
     if (
         manifest.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
@@ -437,6 +448,7 @@ def _assert_mode_consistency(manifest, summary=None, *, synthetic_tech=False):
         raise ValueError("Synthetic technical pilot manifest cannot execute without --synthetic-tech.")
     if summary is not None and (
         "pilot_mode" in summary
+        or summary.get("single_case_mode")
         or summary.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
         or summary.get("generalization_evidence") is False
         or summary.get("same_base_identity") is True
@@ -661,7 +673,7 @@ def _assert_pilot_run_dir(root, run_dir):
     return resolved
 
 
-def expand_pilot_cases(manifest, *, include_untucked=False):
+def expand_pilot_cases(manifest, *, include_untucked=False, case_id=None):
     """Expand 3 targets x 3 flows (+ optional untucked controls) deterministically."""
     flows = list(manifest["flows"])
     if include_untucked:
@@ -679,7 +691,32 @@ def expand_pilot_cases(manifest, *, include_untucked=False):
                 "tuck_top": flow.get("tuck_top"),
                 "status": "pending",
             })
+    if case_id is not None:
+        return [_select_single_case(cases, case_id)]
     return cases
+
+
+def _select_single_case(cases, case_id):
+    selector = _require_nonempty_text(case_id, "Case selector (--case) must be a non-empty '<target_id>__<flow_id>' value.")
+    matches = [case for case in cases if case["id"] == selector]
+    if not matches:
+        available = ", ".join(case["id"] for case in cases)
+        raise ValueError(f"Unknown case selector {selector!r}; defined cases: {available}")
+    if len(matches) > 1:
+        raise ValueError(f"Ambiguous case selector {selector!r}; matched {len(matches)} cases.")
+    selected = dict(matches[0])
+    if selected["flow_type"] != "top_only":
+        raise ValueError(
+            f"Single-case FASHN-only mode (--case) cannot select {selector!r} (flow_type={selected['flow_type']!r}) "
+            "because CatVTON phase is disabled in single-case mode."
+        )
+    selected.update(
+        single_case_mode=True,
+        execution_mode="single_case_fashn_only",
+        catvton_skipped=True,
+        catvton_skip_reason="Single-case FASHN-only mode (--case): CatVTON Phase 2 intentionally skipped.",
+    )
+    return selected
 
 
 def _save_case_comparison(root, target, products, result_path, destination):
@@ -706,6 +743,8 @@ def _create_review_template(run_dir, cases, *, synthetic_tech=False):
             note = f"parse_blocked: {case.get('error', '')}".strip()
         elif status != "completed":
             note = f"{status}: {case.get('error', '')}".strip()
+        elif case.get("single_case_mode") or case.get("catvton_skipped"):
+            note = "single_case_fashn_only; catvton_skipped=true"
         row = {
             "id": case["id"],
             "target_id": case["target_id"],
@@ -751,6 +790,10 @@ def _run_top_only_case(root, target, top_product, case_dir, pipeline, case_recor
     if synthetic_tech:
         selection["pilot_mode"] = SYNTHETIC_PILOT_MODE
         selection["generalization_evidence"] = False
+    if case_record.get("single_case_mode"):
+        selection["single_case_mode"] = True
+        selection["execution_mode"] = "single_case_fashn_only"
+        selection["catvton_skipped"] = bool(case_record.get("catvton_skipped", True))
     write_json(case_dir / "selection.json", selection)
     start = time.perf_counter()
     output = pipeline(
@@ -850,6 +893,10 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
     if synthetic_tech:
         selection["pilot_mode"] = SYNTHETIC_PILOT_MODE
         selection["generalization_evidence"] = False
+    if case_record.get("single_case_mode"):
+        selection["single_case_mode"] = True
+        selection["execution_mode"] = "single_case_fashn_only"
+        selection["catvton_skipped"] = bool(case_record.get("catvton_skipped", True))
     write_json(case_dir / "selection.json", selection)
 
     start = time.perf_counter()
@@ -952,7 +999,17 @@ def run_fashn_phase(root, run_dir, *, fashn_factory=None, synthetic_tech=False):
     targets_by_id = {t["id"]: t for t in validated["targets"]}
     products_by_id = validated["product_by_id"]
 
-    preflight = run_parsing_preflight(root, validated["targets"], pipeline.hp_model, run_dir / "preflight")
+    is_single_case = bool(summary.get("single_case_mode"))
+    if is_single_case:
+        for case in summary["cases"]:
+            if case["flow_type"] != "top_only":
+                raise ValueError("Single-case FASHN-only mode cannot execute non-top_only cases.")
+        preflight_target_ids = list(dict.fromkeys(c["target_id"] for c in summary["cases"]))
+        preflight_targets = [targets_by_id[tid] for tid in preflight_target_ids]
+    else:
+        preflight_targets = validated["targets"]
+
+    preflight = run_parsing_preflight(root, preflight_targets, pipeline.hp_model, run_dir / "preflight")
     write_json(run_dir / "parsing-preflight.json", preflight)
     summary["parsing_preflight"] = preflight
     _refresh_summary(root, run_dir, summary)
@@ -1032,6 +1089,12 @@ def run_catvton_lower(root, run_dir, *, skirt_lower_fn=None, synthetic_tech=Fals
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
     _assert_mode_consistency(manifest, summary, synthetic_tech=synthetic_tech)
+    if (
+        summary.get("single_case_mode")
+        or summary.get("catvton_skipped")
+        or summary.get("execution_mode") == "single_case_fashn_only"
+    ):
+        raise ValueError("CatVTON phase is disabled in single-case FASHN-only mode.")
     validated = _validate_manifest_for_mode(manifest, root, synthetic_tech=synthetic_tech)
     verify_pilot_extractions(root, validated["products"])
     targets_by_id = {t["id"]: t for t in validated["targets"]}
@@ -1089,6 +1152,7 @@ def run_pilot(
     *,
     include_untucked=False,
     synthetic_tech=False,
+    case_id=None,
     fashn_factory=None,
     run_phase1_in_subprocess=True,
     subprocess_runner=None,
@@ -1100,11 +1164,14 @@ def run_pilot(
         raise ValueError(
             "--include-untucked is only valid for the real 3x3 pilot; synthetic 2-flow pilot already defines tucked and untucked flows."
         )
+    if case_id is not None and not synthetic_tech:
+        raise ValueError("--case single-case FASHN-only mode requires --synthetic-tech.")
     manifest_file = local_path(root, manifest_path) if not Path(manifest_path).is_absolute() else Path(manifest_path).resolve()
     manifest = json.loads(manifest_file.read_text(encoding="utf-8-sig"))
     _assert_mode_consistency(manifest, synthetic_tech=synthetic_tech)
     validated = _validate_manifest_for_mode(manifest, root, synthetic_tech=synthetic_tech)
     extractions = verify_pilot_extractions(root, validated["products"])
+    cases = expand_pilot_cases(manifest, include_untucked=include_untucked, case_id=case_id)
     fashn_python = (
         _require_venv_python(root, ".venv")
         if (fashn_factory is None and run_phase1_in_subprocess)
@@ -1118,16 +1185,28 @@ def run_pilot(
         "schema_version": 1,
         "status": "initializing",
         "scope": (
-            "Synthetic 2-flow technical rehearsal only (top_only, top_plus_skirt tucked/untucked); "
-            "never real-human quality or >=80% generalization evidence"
-            if synthetic_tech
-            else "3x3 pilot readiness validation; never the >=80% general quality gate"
+            f"Single-case FASHN-only synthetic technical rehearsal ({cases[0]['id']}); "
+            "CatVTON skipped; never real-human quality or >=80% generalization evidence"
+            if case_id is not None
+            else (
+                "Synthetic 2-flow technical rehearsal only (top_only, top_plus_skirt tucked/untucked); "
+                "never real-human quality or >=80% generalization evidence"
+                if synthetic_tech
+                else "3x3 pilot readiness validation; never the >=80% general quality gate"
+            )
         ),
         "manifest_sha256": sha256(manifest_file),
         "include_untucked": bool(include_untucked),
-        "settings": {"fashn": FASHN_SETTINGS, "catvton": {"steps": 50, "guidance": 2.5, "seed": 42}},
+        "settings": {
+            "fashn": FASHN_SETTINGS,
+            "catvton": (
+                {"skipped": True, "reason": "single_case_fashn_only"}
+                if case_id is not None
+                else {"steps": 50, "guidance": 2.5, "seed": 42}
+            ),
+        },
         "source_extractions": extractions,
-        "cases": expand_pilot_cases(manifest, include_untucked=include_untucked),
+        "cases": cases,
     }
     if synthetic_tech:
         summary.update(
@@ -1145,6 +1224,20 @@ def run_pilot(
                 "Synthetic presets all derive from avatar-baseline.png; effective subject diversity is 1 "
                 "and top_plus_trousers is excluded."
             ),
+        )
+    if case_id is not None:
+        selected = cases[0]
+        summary.update(
+            single_case_mode=True,
+            execution_mode="single_case_fashn_only",
+            selected_case_id=selected["id"],
+            selected_target_id=selected["target_id"],
+            selected_flow_id=selected["flow_id"],
+            selected_product_id=selected["top_id"],
+            fashn_only=True,
+            catvton_executed=False,
+            catvton_skipped=True,
+            catvton_skip_reason="Single-case FASHN-only mode (--case): CatVTON Phase 2 intentionally skipped.",
         )
     _refresh_summary(root, run_dir, summary)
     runner = subprocess_runner or subprocess.run
@@ -1173,26 +1266,30 @@ def run_pilot(
             runner(fashn_cmd, check=True, cwd=root)
             summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
 
-        prepared_skirts = [c for c in summary["cases"] if c["flow_type"] == "top_plus_skirt" and c["status"] == "prepared"]
-        if prepared_skirts:
-            if catvton_runner is not None:
-                catvton_runner(root, run_dir)
-            else:
-                cat_python = _require_venv_python(root, ".venv-catvton")
-                cat_cmd = [
-                    str(cat_python),
-                    "-u",
-                    str(Path(__file__).resolve()),
-                    "catvton-lower",
-                    "--root",
-                    str(root),
-                    "--run-dir",
-                    str(run_dir),
-                ]
-                if synthetic_tech:
-                    cat_cmd.append("--synthetic-tech")
-                runner(cat_cmd, check=True, cwd=root)
-            summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        if case_id is None:
+            prepared_skirts = [c for c in summary["cases"] if c["flow_type"] == "top_plus_skirt" and c["status"] == "prepared"]
+            if prepared_skirts:
+                if catvton_runner is not None:
+                    catvton_runner(root, run_dir)
+                else:
+                    cat_python = _require_venv_python(root, ".venv-catvton")
+                    cat_cmd = [
+                        str(cat_python),
+                        "-u",
+                        str(Path(__file__).resolve()),
+                        "catvton-lower",
+                        "--root",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                    ]
+                    if synthetic_tech:
+                        cat_cmd.append("--synthetic-tech")
+                    runner(cat_cmd, check=True, cwd=root)
+                summary = json.loads((run_dir / "pilot-summary.json").read_text(encoding="utf-8"))
+        else:
+            summary["catvton_executed"] = False
+            summary["catvton_skipped"] = True
 
         for case in summary["cases"]:
             if case["status"] == "prepared":
@@ -1235,6 +1332,11 @@ def main(argv=None):
     run_p.add_argument("--manifest", type=Path, required=True)
     run_p.add_argument("--include-untucked", action="store_true")
     run_p.add_argument("--synthetic-tech", action="store_true")
+    run_p.add_argument(
+        "--case",
+        default=None,
+        help="Run only one explicit synthetic FASHN-only case (e.g. slender__top); skips CatVTON phase",
+    )
 
     fashn_p = commands.add_parser("fashn-phase", help=argparse.SUPPRESS)
     fashn_p.add_argument("--root", type=Path, required=True)
@@ -1290,8 +1392,9 @@ def main(argv=None):
                 args.manifest,
                 include_untucked=args.include_untucked,
                 synthetic_tech=args.synthetic_tech,
+                case_id=args.case,
             )
-        except (FileNotFoundError, RuntimeError) as error:
+        except (FileNotFoundError, RuntimeError, ValueError) as error:
             print(f"ERROR: {error}", file=sys.stderr, flush=True)
             return 1
         print(dest, flush=True)

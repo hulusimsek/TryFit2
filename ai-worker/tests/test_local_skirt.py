@@ -320,5 +320,143 @@ class SkirtRuntimeTests(unittest.TestCase):
             self.assertEqual(fail_outcome['error_stage'], 'tiled_fallback_decode')
             self.assertEqual(fail_outcome['vae_decode']['mode'], 'tiled_fallback')
 
+    def test_restore_raw_background_fixes_untucked_box_and_leg_rim_without_touching_garments_skin_or_leggings(self):
+        # Build a synthetic 160x120 target/raw/mask scene with 8px constant letterbox pads on left/right.
+        height, width = 160, 120
+        target = np.full((height, width, 3), (208, 207, 208), dtype=np.uint8)
+        target[:, :8] = (220, 220, 220)
+        target[:, -8:] = (220, 220, 220)
+        # Target has dark top (y 10..55), grey leggings (y 55..145, x 40..54 & 66..80), and feet (y 145..155).
+        target[10:55, 36:84] = (20, 20, 24)
+        target[55:145, 40:54] = (112, 111, 115)
+        target[55:145, 66:80] = (112, 111, 115)
+        target[145:155, 42:53] = (206, 162, 140)
+        target[145:155, 67:78] = (206, 162, 140)
+
+        # Edit mask covers untucked skirt box (y 55..100, x 32..88) and legs (y 100..145, x 40..54 & 66..80).
+        mask = np.zeros((height, width), dtype=np.uint8)
+        mask[55:100, 32:88] = 255
+        mask[100:145, 40:54] = 255
+        mask[100:145, 66:80] = 255
+
+        # Raw shifts studio bg (+8) everywhere, generates black pleated skirt (y 55..82) with silver buckle,
+        # leaves exposed shifted bg box under skirt (y 82..100), and renders narrower bare legs (x 41..53 & 67..77)
+        # leaving a 3px shifted bg strip + 1px bright overshoot (230,224,224) on right leg outer contour.
+        raw = np.clip(target.astype(np.int16) + 8, 0, 255).astype(np.uint8)
+        raw[55:82, 35:85] = (26, 24, 26)
+        raw[57:63, 56:64] = (232, 232, 236)  # interior silver buckle
+        raw[82:100, 32:88] = (216, 215, 216)  # exposed shifted studio bg under skirt
+        raw[82:145, 41:53] = (210, 162, 140)  # bare left leg skin
+        raw[82:145, 67:77] = (210, 162, 140)  # bare right leg skin (3px narrower on outer contour x=77..79)
+        raw[100:145, 40] = (228, 223, 223)    # 1px left leg bright overshoot
+        raw[100:145, 77] = (230, 224, 224)    # 1px right leg bright overshoot
+        raw[100:145, 78:80] = (216, 215, 216) # 2px exposed shifted bg inside legging mask
+
+        restored = np.asarray(local_skirt.restore_raw_background(
+            Image.fromarray(raw), Image.fromarray(target), Image.fromarray(mask)
+        ))
+        alpha = (mask.astype(np.float32) / 255.0)[:, :, None]
+        repainted = np.rint(restored * alpha + target * (1.0 - alpha)).astype(np.uint8)
+
+        # 1. Under-skirt rectangular seam is removed back to target background tone.
+        self.assertLess(float(np.abs(repainted[83:99, 33:40].astype(float) - 207.7).max()), 1.5)
+        self.assertLess(float(np.abs(repainted[83:99, 55:65].astype(float) - 207.7).max()), 1.5)
+        # 2. Exterior-connected bright leg rim & exposed bg strip are restored to studio bg, not bright 228..230 or grey leggings.
+        self.assertLess(float(np.abs(repainted[105:140, 77:80].astype(float) - 207.7).max()), 1.5)
+        self.assertLess(float(np.abs(repainted[105:140, 40].astype(float) - 207.7).max()), 1.5)
+        # 3. Black skirt and interior buckle pixels are completely preserved.
+        self.assertTrue(np.array_equal(restored[56:81, 36:84], raw[56:81, 36:84]))
+        self.assertTrue(np.array_equal(restored[57:63, 56:64], raw[57:63, 56:64]))
+        # 4. Bare leg skin pixels are untouched.
+        self.assertTrue(np.array_equal(restored[82:145, 41:53], raw[82:145, 41:53]))
+        self.assertTrue(np.array_equal(restored[82:145, 67:77], raw[82:145, 67:77]))
+
+    def test_restore_raw_background_preserves_light_skirts_target_leggings_and_ambiguous_pixels(self):
+        height, width = 160, 120
+        target = np.full((height, width, 3), (208, 207, 208), dtype=np.uint8)
+        target[55:145, 42:78] = (115, 114, 118)  # target leggings inside mask
+        mask = np.zeros((height, width), dtype=np.uint8)
+        mask[55:145, 32:88] = 255
+
+        for skirt_rgb in [(246, 246, 246), (238, 228, 210), (225, 225, 225)]:
+            raw = np.clip(target.astype(np.int16) + 7, 0, 255).astype(np.uint8)
+            # Light-colored skirt covering hips/thighs and touching mask==0 on sides and bare skin below.
+            raw[55:95, 32:88] = skirt_rgb
+            raw[95:125, 44:76] = (210, 162, 140)  # bare skin below skirt hem
+            # Target-like leggings left unreplaced at y 125..145 must NOT be turned into background.
+            raw[125:145, 44:76] = (118, 117, 121)
+            # Ambiguous 5px thick bright neutral patch next to skin (not a 1-2px rim).
+            raw[100:120, 39:44] = (228, 224, 224)
+
+            restored = np.asarray(local_skirt.restore_raw_background(
+                Image.fromarray(raw), Image.fromarray(target), Image.fromarray(mask)
+            ))
+            # Light-colored skirt (including hem touching skin) is 100% preserved.
+            self.assertTrue(np.array_equal(restored[55:95, 32:88], raw[55:95, 32:88]))
+            # Unreplaced legging pixels remain untouched (never turned into background).
+            self.assertTrue(np.array_equal(restored[125:145, 44:76], raw[125:145, 44:76]))
+            # Ambiguous 5px thick bright neutral patch is left untouched.
+            self.assertTrue(np.array_equal(restored[100:120, 39:44], raw[100:120, 39:44]))
+            # Skin is untouched.
+            self.assertTrue(np.array_equal(restored[95:125, 44:76], raw[95:125, 44:76]))
+
+    def test_lower_saves_untouched_raw_and_passes_restored_raw_to_repaint(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            weights = root / 'ai-worker/models/catvton'
+            weights.mkdir(parents=True)
+            (weights / 'provenance.json').write_text(json.dumps({'files': []}), encoding='utf-8')
+
+            job = root / 'runs/local-jobs' / ('c' * 32)
+            job.mkdir(parents=True)
+            (job / 'selection.json').write_text('{}', encoding='utf-8')
+            target_arr = np.full((64, 48, 3), (208, 207, 208), dtype=np.uint8)
+            mask_arr = np.zeros((64, 48), dtype=np.uint8)
+            mask_arr[20:44, 14:34] = 255
+            raw_arr = np.full((64, 48, 3), (216, 215, 216), dtype=np.uint8)
+            raw_arr[20:32, 16:32] = (24, 24, 26)  # dark skirt
+
+            names = ['01-top.png', 'cat-target.png', 'cat-hard-mask.png', 'cat-soft-mask.png', 'cat-preserve.png', 'cat-condition.png']
+            for name in names:
+                if name == 'cat-target.png':
+                    Image.fromarray(target_arr).save(job / name)
+                elif 'mask' in name or 'preserve' in name:
+                    Image.fromarray(mask_arr).save(job / name)
+                else:
+                    Image.new('RGB', (48, 64), (20, 30, 40)).save(job / name)
+            (job / 'skirt-handoff.json').write_text(json.dumps({
+                'selection_sha256': sha256(job / 'selection.json'),
+                'files': {name: sha256(job / name) for name in names},
+            }), encoding='utf-8')
+
+            class _RawModel:
+                last_decode_info = None
+                last_error_stage = None
+
+                def __call__(self, **_kwargs):
+                    return [Image.fromarray(raw_arr.copy())]
+
+            seen_repaint_inputs = []
+
+            def _fake_repaint(raw_img, tgt_img, msk_img):
+                seen_repaint_inputs.append(np.asarray(raw_img).copy())
+                return raw_img
+
+            fake_utils = SimpleNamespace(repaint_result=_fake_repaint)
+            fake_probe = SimpleNamespace(pipeline=lambda _w: _RawModel())
+            with patch.object(local_skirt, 'ROOT', root), \
+                 patch.dict(sys.modules, {'utils': fake_utils, 'catvton_probe': fake_probe}), \
+                 patch('torch.cuda.is_available', return_value=False):
+                local_skirt.lower(job)
+
+            saved_raw = np.asarray(Image.open(job / '02-skirt-raw.png').convert('RGB'))
+            self.assertTrue(np.array_equal(saved_raw, raw_arr))
+            self.assertEqual(len(seen_repaint_inputs), 1)
+            # Exposed shifted background under skirt (y 34..44) was restored to target background before repaint,
+            # while the dark skirt (y 20..32) remained identical to raw.
+            self.assertTrue(np.array_equal(seen_repaint_inputs[0][34:43, 15:33], target_arr[34:43, 15:33]))
+            self.assertTrue(np.array_equal(seen_repaint_inputs[0][20:32, 16:32], raw_arr[20:32, 16:32]))
+
 
 if __name__=='__main__':unittest.main()

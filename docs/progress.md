@@ -332,6 +332,36 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
   - `.\.venv-catvton\Scripts\python.exe -m unittest ai-worker.tests.test_catvton -v`: `24` test (`23` geçti, `1` explicit GPU testi atlandı).
   - Tüm 6 profilde CPU maske doğrulaması: `partial_bg=0`, `arm_ov=0`, `min_arm_gap_on_bg=3px`. (Not: `unittest ai-worker.tests.test_local_skirt` tek başına çağrıldığında mevcut `test_lower_records_vae_decode_and_failure_telemetry_without_gpu` testi Windows `torch` çift-import docstring hatası vermekte, `unittest discover` altında temiz geçmektedir.)
 
+## K17 Arka Plan Parlaklık Basamağı ve Bacak Kenarı İzi (Aşama 1–3, `medium__skirt-untucked`) — 12 Kasım 2026
+
+- **Amaç ve kapsam**: CatVTON çıktısında özellikle `untucked` vakalarda etek altında görülen stüdyo arka plan parlaklık basamağını ve dış bacak konturundaki ince parlak kenar izini; ham inference, CatVTON girdileri, hard/soft/preserve maskeleri ve Adaptive VAE Decode davranışına dokunmadan yalnızca raw sonrasında (`repaint_result` öncesinde) azaltmak.
+- **Aşama 1 — Algoritma (`ai-worker/app/local_skirt.py`)**:
+  - `restore_raw_background` (ve yardımcı fonksiyonlar `_non_letterbox_mask`, `_estimate_exterior_background`, `_connected_from_seeds`) eklendi ve `lower()` içinde ham `02-skirt-raw.png` diske yazıldıktan sonra `repaint_result` çağrısından hemen önce uygulandı.
+  - Dış stüdyo arka planı referansı edit maskesi dışından (`~edit_mask`) letterbox şeritleri hariç tutularak satır bazlı kayan medyan (`t_row`, `r_row`) ile tahmin edilir; mutlak parlaklık eşiği kullanılmaz.
+  - Ten (`R-B >= 14`, kroma ve `r_row` mavi kanalı farkı), kumaş/toka çekirdek bileşenleri ve emin olunamayan pikseller korunur; yalnızca dış arka planla 8-bağlantılı güvenli arka plan pikselleri ile `<= 2.5 px` kalınlığındaki dar nötr parlak kenar izi `cat-target.png` / satır bazlı arka plan tonuna geri yüklenir.
+- **Aşama 2 — CPU regresyon testleri (`ai-worker/tests/test_local_skirt.py`)**:
+  - GPU gerektirmeyen 3 test eklendi (`untucked` stüdyo arka plan basamağı, bacak dış kenar parlak izi, siyah/açık renk etek + toka koruması, ten koruması, hedefteki tayt piksellerinin arka plana dönmemesi, belirsiz piksellerin korunması, raw çıktının değişmeyip `repaint_result`'a düzeltilmiş raw iletilmesi).
+- **Aşama 3 — Tek vaka GPU A/B (`medium__skirt-untucked`)**:
+  - Koşu: `runs/pilot-20261112T141701Z-c0fa9e91` (`runs/pilot-20261112T135120Z-b9ae172a` baz alınarak).
+  - Girdiler, maskeler (`cat-hard-mask.png`, `cat-soft-mask.png`, `cat-preserve.png`) ve ham çıktı (`02-skirt-raw.png`) SHA-256 düzeyinde birebir aynı kaldı (`L1=0.0000`); `02-skirt-repaint.png` üzerinde soft mask (`>0`) dışında tek bir piksel bile değişmedi (`0 px`).
+  - Etek altı stüdyo arka plan basamağı (`y=615..669`) ortalama `+7.95` luma (maks `+11.00`) seviyesinden ortalama `+0.52` luma (maks `+1.70`) seviyesine düştü.
+  - Bacak bölgesinde (`y=680..910`) `P_lum > 212` parlak piksel sayısı `2418` → `302` (`result.png` bacak bandında `1895` → `450`) olarak azaldı; siyah etek pikselleri (`<80 RGB`, `42440 px`) `0.0000` L1 farkla, çıplak ten (`22379 px`) `0.0170` ortalama L1 farkla korundu.
+  - `catvton_vae_decode`: `mode=untiled`, `oom_fallback=false`, `peak_allocated_gib=3.574`, `lower_elapsed_seconds=44.17`.
+- **Kalan 5-Vaka GPU Kabul Doğrulaması (tümü `mode=untiled`, `oom_fallback=false`, `peak_allocated_gib=3.574`; `01-top.png`, `cat-target.png`, `cat-hard-mask.png`, `cat-soft-mask.png`, `cat-preserve.png` ve `02-skirt-raw.png` SHA-256 birebir aynı, `raw L1=0.0000`; `02-skirt-repaint.png` üzerinde soft mask dışı değişiklik `0 px`, siyah etek `<80 RGB` L1 `0.0000`, ayak/bilek `y>=920` değişiklik `0 px`)**:
+  - `slender__skirt-tucked` (`fba3d380 -> eb01112b`, `45.67s`): **KABUL** — Etek ucu arka plan adımı `+3.69 -> -0.14` (maks `+9.59 -> +2.41`), bacak `P_lum>212` `676 -> 11` (`result` bacak bandı `644 -> 239`), çıplak ten L1 `0.0090`; siyah pileli etek, C-toka ve K16 düzeltmesi (şort regresyonu yok) korundu.
+  - `slender__skirt-untucked` (`ff710c72 -> 9f533974`, `44.70s`): **KABUL** — Etek altı stüdyo kutusu farkı `+7.41 -> +0.01` (maks `+10.74 -> +1.41`), bacak `P_lum>212` `1418 -> 45` (`result` `1310 -> 263`), çıplak ten L1 `0.0125`; K16 A-line silüeti korundu (`K14` kaynaklı önceden var olan etek içi renk/doku karakteri `02-skirt-raw.png` ile özdeş bırakıldı).
+  - `medium__skirt-tucked` (`8ae211d3 -> 79a0c8d7`, `44.77s`): **KABUL** — Arka plan adımı `+7.55 -> -0.06` (maks `+15.39 -> +2.00`), bacak `P_lum>212` `1553 -> 131` (`result` `1247 -> 316`), çıplak ten L1 `0.0169`; pileler, C-toka, üst giysi ve eller korundu.
+  - `fuller__skirt-tucked` (`385ce953 -> 420ab6ee`, `44.51s`): **KABUL** — Köşe üçgenleri ve bacak kenar izi temizlendi (maks adım `+7.30 -> +1.55`, bacak `P_lum>212` `758 -> 44`, `result` `767 -> 355`), çıplak ten L1 `0.0116`; silüet, pileler, C-toka ve parmak/el ayrımı korundu.
+  - `fuller__skirt-untucked` (`b961a7d1 -> 708a38da`, `44.55s`): **KABUL** — Etek yan/alt arka plan kutusu `+7.07 -> -0.06` (maks `+12.31 -> +1.98`), bacak `P_lum>212` `1197 -> 134` (`result` `1091 -> 396`), çıplak ten L1 `0.0309`; etek, pileler, tişört sınırı ve eller korundu.
+- **Testler ve K17 Durumu**:
+  - `.\.venv\Scripts\python.exe -m unittest discover -s ai-worker\tests -v`: `125` test çalıştı (`123` geçti, `2` GPU/`CatVTON` ortamı atlandı).
+  - `.\.venv-catvton\Scripts\python.exe -m unittest ai-worker.tests.test_catvton ai-worker.tests.test_catvton_skirt ai-worker.tests.test_local_skirt -v`: `40` test (`39` geçti, `1` explicit GPU testi atlandı).
+  - **K17 tamamlandı** (`6/6` synthetic 2-flow vakasında doğrulandı; git commit henüz oluşturulmadı).
+- **Tamamlanmayan diğer iş / sonraki mantıklı adım**:
+  - Kullanıcı onayıyla K17 değişikliklerinin commit edilmesi ve ayrı bir görev olarak kalan `K14` (`slender__skirt-untucked` doku/renk kayması) incelemesi.
+
+
+
 
 
 

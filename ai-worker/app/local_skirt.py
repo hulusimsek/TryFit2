@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import cv2
 import numpy as np
 from PIL import Image
 from experiment import load_rgb,local_path,sha256,write_json
@@ -59,6 +60,166 @@ def upper(directory):
     print('TOP_COMPLETED',flush=True)
 
 
+def _connected_from_seeds(mask, seeds):
+    """Return 8-connected components of mask that intersect seeds."""
+    if not mask.any() or not seeds.any():
+        return np.zeros(mask.shape, dtype=bool)
+    _, labels = cv2.connectedComponents(mask.astype(np.uint8), connectivity=8)
+    seed_ids = np.unique(labels[seeds])
+    seed_ids = seed_ids[seed_ids > 0]
+    if not len(seed_ids):
+        return np.zeros(mask.shape, dtype=bool)
+    return np.isin(labels, seed_ids)
+
+
+def _non_letterbox_mask(target_arr):
+    """Exclude symmetric or edge-bounded uniform letterbox padding strips when present."""
+    height, width, _ = target_arr.shape
+    keep = np.ones((height, width), dtype=bool)
+    max_pad_x = width // 3
+    max_pad_y = height // 3
+
+    def _strip_edge(axis_len, limit, slice_fn, ref_px):
+        count = 0
+        while count < limit and np.all(slice_fn(count) == ref_px):
+            count += 1
+        if 0 < count < limit:
+            nxt = slice_fn(count)
+            if float(np.median(np.abs(nxt - ref_px).max(axis=1))) > 2.0:
+                return count
+        return 0
+
+    left_pad = _strip_edge(width, max_pad_x, lambda x: target_arr[:, x], target_arr[0, 0])
+    right_pad = _strip_edge(width, max_pad_x, lambda x: target_arr[:, width - 1 - x], target_arr[0, width - 1])
+    top_pad = _strip_edge(height, max_pad_y, lambda y: target_arr[y, :], target_arr[0, 0])
+    bot_pad = _strip_edge(height, max_pad_y, lambda y: target_arr[height - 1 - y, :], target_arr[height - 1, 0])
+    if left_pad:
+        keep[:, :left_pad] = False
+    if right_pad:
+        keep[:, width - right_pad:] = False
+    if top_pad:
+        keep[:top_pad, :] = False
+    if bot_pad:
+        keep[height - bot_pad:, :] = False
+    return keep
+
+
+def _estimate_exterior_background(target_arr, raw_arr, edit_mask):
+    """Estimate row-wise target and raw studio background from unmasked exterior pixels."""
+    height, width, _ = target_arr.shape
+    ext = (~edit_mask) & _non_letterbox_mask(target_arr)
+    if not ext.any():
+        ext = ~edit_mask
+    t_med0 = np.median(target_arr[ext], axis=0)
+    bg_ext = ext & (np.abs(target_arr - t_med0).max(axis=2) <= 18.0)
+    if not bg_ext.any():
+        bg_ext = ext
+    t_global = np.median(target_arr[bg_ext], axis=0)
+    r_global = np.median(raw_arr[bg_ext], axis=0)
+    t_row = np.tile(t_global, (height, 1)).astype(np.float32)
+    r_row = np.tile(r_global, (height, 1)).astype(np.float32)
+    win = max(4, round(height * 0.025))
+    min_pts = max(8, width // 40)
+    for y in range(height):
+        y0, y1 = max(0, y - win), min(height, y + win + 1)
+        m = bg_ext[y0:y1]
+        if int(m.sum()) >= min_pts:
+            t_row[y] = np.median(target_arr[y0:y1][m], axis=0)
+            r_row[y] = np.median(raw_arr[y0:y1][m], axis=0)
+    return t_row, r_row, bg_ext
+
+
+def restore_raw_background(raw, target, mask):
+    """Conservatively restore exterior-connected studio background in raw before repaint."""
+    raw_img = raw.convert('RGB')
+    target_img = target.convert('RGB')
+    mask_img = mask.convert('L')
+    if raw_img.size != target_img.size or raw_img.size != mask_img.size:
+        raise ValueError('Raw, target and mask sizes must match')
+
+    raw_arr = np.asarray(raw_img, dtype=np.float32)
+    target_arr = np.asarray(target_img, dtype=np.float32)
+    mask_arr = np.asarray(mask_img)
+    edit = mask_arr > 0
+    if not edit.any() or edit.all():
+        return raw_img.copy()
+
+    height, width, _ = raw_arr.shape
+    t_row, r_row, bg_ext = _estimate_exterior_background(target_arr, raw_arr, edit)
+    if not bg_ext.any():
+        return raw_img.copy()
+
+    raw_chroma = raw_arr.max(axis=2) - raw_arr.min(axis=2)
+    raw_rb = raw_arr[:, :, 0] - raw_arr[:, :, 2]
+    rbg_chroma = (r_row.max(axis=1) - r_row.min(axis=1))[:, None]
+    rbg_rb = (r_row[:, 0] - r_row[:, 2])[:, None]
+    chroma_diff = np.abs(raw_chroma - rbg_chroma)
+    rb_diff = raw_rb - rbg_rb
+    raw_lum = raw_arr.mean(axis=2)
+    rbg_lum = r_row.mean(axis=1)[:, None]
+
+    # Separate skin pixels explicitly via warm chroma and depressed blue channel relative to background.
+    is_skin = edit & (rb_diff >= 14.0) & (chroma_diff >= 12.0) & (raw_arr[:, :, 2] < r_row[:, None, 2] - 8.0)
+
+    k3 = np.ones((3, 3), np.uint8)
+    dr_max = np.abs(raw_arr - r_row[:, None, :]).max(axis=2)
+    dt_max = np.abs(target_arr - t_row[:, None, :]).max(axis=2)
+
+    # 1. Broad studio background where both target and raw agree with local exterior background.
+    cand_bg_target = edit & (~is_skin) & (dt_max <= 10.0) & (dr_max <= 7.5) & (chroma_diff <= 7.0)
+    bg_target_seeds = (cv2.dilate(bg_ext.astype(np.uint8), k3) > 0) & cand_bg_target
+    bg_target_conn = _connected_from_seeds(cand_bg_target, bg_target_seeds)
+
+    # 2. Narrow exposed background strip along bare legs (where target had leggings, not background).
+    base_ext = bg_ext | bg_target_conn
+    strip_lim = max(4, round(height * 0.008))
+    dist_base = cv2.distanceTransform((~base_ext).astype(np.uint8), cv2.DIST_L2, 5)
+    dist_skin = (cv2.distanceTransform((~is_skin).astype(np.uint8), cv2.DIST_L2, 5)
+                 if is_skin.any() else np.full((height, width), 1e6, dtype=np.float32))
+    cand_bg_strip = (
+        edit
+        & (~bg_target_conn)
+        & (~is_skin)
+        & (dist_base <= strip_lim + 0.5)
+        & (dist_skin <= strip_lim + 2.5)
+        & (dr_max <= 8.5)
+        & (chroma_diff <= 7.5)
+    )
+    union_bg = bg_target_conn | cand_bg_strip
+    bg_conn = _connected_from_seeds(union_bg, (cv2.dilate(bg_ext.astype(np.uint8), k3) > 0) & union_bg)
+
+    # 3. Thin 1-2 px neutral overshoot rim strictly sandwiched between exterior background and skin;
+    #    reject any connected bright component that reaches deeper into a light-colored garment or buckle.
+    ext_plus_bg = bg_ext | bg_conn
+    dist_ext = cv2.distanceTransform((~ext_plus_bg).astype(np.uint8), cv2.DIST_L2, 5)
+    bright_non_bg = edit & (~is_skin) & (~bg_conn) & (raw_lum >= rbg_lum - 12.0)
+    bright_core = bright_non_bg & ((dist_ext > 2.5) | (dist_skin > 3.0))
+    touches_core = _connected_from_seeds(bright_non_bg, bright_core)
+    r_lum_diff = raw_lum - rbg_lum
+    cand_rim = (
+        bright_non_bg
+        & (~touches_core)
+        & (dist_ext <= 2.5)
+        & (dist_skin <= 2.5)
+        & (r_lum_diff >= -4.0)
+        & (r_lum_diff <= 28.0)
+        & (raw_arr.min(axis=2) >= r_row.min(axis=1)[:, None] - 8.0)
+        & (chroma_diff <= 14.0)
+        & (rb_diff <= 14.0)
+    )
+
+    union_all = bg_conn | cand_rim
+    restore_mask = _connected_from_seeds(union_all, (cv2.dilate(bg_ext.astype(np.uint8), k3) > 0) & union_all)
+    if not restore_mask.any():
+        return raw_img.copy()
+
+    target_is_flat_bg = dt_max <= 5.0
+    target_bg_val = np.where(target_is_flat_bg[:, :, None], target_arr, t_row[:, None, :])
+    restored = raw_arr.copy()
+    restored[restore_mask] = target_bg_val[restore_mask]
+    return Image.fromarray(np.rint(np.clip(restored, 0, 255)).astype(np.uint8))
+
+
 def lower(directory):
     import torch
     from catvton_probe import pipeline
@@ -90,7 +251,8 @@ def lower(directory):
             generator=generator,eta=1.0)[0]
         if use_cuda:
             torch.cuda.synchronize()
-        primary=repaint_result(raw,target,mask)
+        raw_for_repaint=restore_raw_background(raw,target,mask)
+        primary=repaint_result(raw_for_repaint,target,mask)
         raw.save(directory/'02-skirt-raw.png');primary.save(directory/'02-skirt-repaint.png')
         write_json(directory/'catvton-outcome.json',{'status':'completed','raw_sha256':sha256(directory/'02-skirt-raw.png'),
             'output_sha256':sha256(directory/'02-skirt-repaint.png'),'elapsed_seconds':round(time.perf_counter()-start,2),

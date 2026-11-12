@@ -389,6 +389,25 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Sonraki mantıklı adım**:
   - Gönüllü katılımcı fotoğrafları ve rıza kayıtları beklenirken K16/K17 baseline'ını koruyarak katılımcı verisi gerektirmeyen teknik veya mimari işlerle devam etmek; fotoğraflar ve rızalar sağlandığında Git dışı gerçek manifest üzerinden `validate -> preflight -> run` adımlarıyla gerçek pilotu yeniden başlatmak.
 
+## Bağımsız Çift Değerlendirici Pilot Özet Aracı (pilot_evaluator.py) — 12 Kasım 2026
+
+- **Amaç ve tasarım**:
+  - Gerçek 3×3 pilot (ve sentetik 2-akış teknik provaları) için `pilot_runner.py` tarafından üretilen `review-template.csv` çıktısını iki bağımsız değerlendirici üzerinden okuyan, sentezleyen ve uyuşmazlıkları raporlayan bağımsız bir değerlendirme aracı oluşturuldu ([`ai-worker/app/pilot_evaluator.py`](../ai-worker/app/pilot_evaluator.py)).
+  - Mevcut `experiment.py evaluate` (10 ürünlük benchmark aracı) ve `pilot_runner.py` çalışma anı koduna dokunulmadı; sözleşmeler izole tutuldu.
+- **Uygulanan temel kurallar**:
+  1. **Değerlendirici uyuşmazlıkları**: İki değerlendiricinin ham puanları (`evaluator_1`, `evaluator_2`) ayrı ayrı korunur. Mutlak puan farkı `>= 2` olan metrikler `score_discrepancies` altında listelenir ve `human_adjudication_required: true` bayrağı tetiklenir. Otomatik vaka kararı muhafazakar olarak `min(r1, r2)` puanına dayanır ancak bu geçici bir otomatik hesaplamadır; insan uzlaşması yerine geçmez. Herhangi bir değerlendiricinin `critical_failure=yes` veya `untargeted_changes=yes` işaretlemesi doğrudan veto uygular (`provisional = failed`).
+  2. **Dinamik vaka türetimi**: 9 veya 12 vaka sabit kodlanmaz; beklenen vakalar `pilot-summary.json` ve `manifest.json` üzerinden dinamik türetilir. Üretilmeyen vakalar `not_generated` / `parse_blocked` olarak raporlanır; fazla veya tekrarlanan vaka kimlikleri reddedilir. `top_only` akışlarında ek 3 metrik için `N/A` kabul edilir; iki parçalı akışlarda (`trousers`, `skirt`) ek metriklerde `N/A` reddedilir (`0..4` puan zorunludur).
+  3. **Kalite kapısı ayrımı**: Çıktı `pilot_acceptance` altında raporlanır (`provisionally_acceptable`, `pending_human_adjudication`, `pending` veya `failed`). `general_quality_gate` daima `not_established` kalır ve `generalization_evidence: false` korunur; sınırlı 3 katılımcılı pilotun genel ürün kalitesini kanıtlamadığı açıkça belirtilir.
+- **Birim testler (`ai-worker/tests/test_pilot_evaluator.py`)**:
+  - 15 birim test (`test_two_reviewers_full_pass`, `test_score_discrepancy_detected`, `test_veto_by_single_reviewer_critical_failure`, `test_veto_by_single_reviewer_untargeted_changes`, `test_top_only_allows_na_for_extra_metrics`, `test_two_stage_rejects_na_for_extra_metrics`, `test_dynamic_case_count_derivation`, `test_unexecuted_manifest_case_reported_as_not_generated`, `test_unexpected_case_id_rejected`, `test_single_reviewer_rejected`, `test_duplicate_review_by_same_reviewer_rejected`, `test_identical_reviewer_names_rejected`, `test_mismatched_target_or_flow_id_rejected`, `test_parse_blocked_and_failed_cases_never_pass_even_with_perfect_scores`, `test_cli_main_execution`) CPU üzerinde %100 geçti (`15/15 OK`, 0.075s).
+- **Mevcut testlerin kapanışı ve doğrulanmış durum**:
+  - `ai-worker/tests/test_pilot.py`: `test_template_has_no_real_files_or_consent_and_is_rejected_unfilled` testi, `data/pilot/trousers-product.jpg` gibi bilerek indirilmiş yerel ürün dosyalarının varlığından bağımsız hale getirildi; şablonun boş ürün alanları (`image_sha256`, `product_url`, `source_image_url`, `source_notes`) ve `validate_pilot_manifest` ValueError fırlatma davranışı korundu. `test_pilot.py` içindeki tüm `33/33` test hatasız geçti.
+  - `.venv` test paketi (`.\.venv\Scripts\python.exe -m unittest discover -s ai-worker\tests`): `140` test çalıştı; `138` test geçti, `2` test atlandı (GPU entegrasyonu ve CatVTON ortamı gerektiren testler), `0` hata / `0` başarısızlık (`OK (skipped=2)`).
+  - `.venv-catvton` test paketi (`.\.venv-catvton\Scripts\python.exe -m unittest ai-worker.tests.test_catvton ai-worker.tests.test_catvton_skirt ai-worker.tests.test_local_skirt`): `40` test çalıştı; `39` test geçti, `1` test atlandı (açık GPU testi), `0` hata / `0` başarısızlık (`OK (skipped=1)`).
+  - Tüm test paketlerinde başarısız test kalmadı.
+- **Sonraki mantıklı adım**:
+  - Gönüllü katılımcı fotoğrafları ve rıza kayıtları temin edildiğinde gerçek pilot koşusunu çalıştırmak ve iki bağımsız değerlendiricinin dolduracağı CSV dosyalarını `pilot_evaluator.py` ile sentezlemek.
+
 
 
 

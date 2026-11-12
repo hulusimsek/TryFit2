@@ -352,7 +352,8 @@ class PilotValidationTests(unittest.TestCase):
         for product in template["products"]:
             self.assertEqual(product["image_sha256"], "")
             self.assertEqual(product["product_url"], "")
-            self.assertFalse((ROOT_DIR / product["image"]).exists())
+            self.assertEqual(product["source_image_url"], "")
+            self.assertEqual(product["source_notes"], "")
         with self.assertRaises(ValueError):
             pilot_runner.validate_pilot_manifest(template, ROOT_DIR)
 

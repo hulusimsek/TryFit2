@@ -356,13 +356,13 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Testler ve K17 Durumu**:
   - `.\.venv\Scripts\python.exe -m unittest discover -s ai-worker\tests -v`: `125` test çalıştı (`123` geçti, `2` GPU/`CatVTON` ortamı atlandı).
   - `.\.venv-catvton\Scripts\python.exe -m unittest ai-worker.tests.test_catvton ai-worker.tests.test_catvton_skirt ai-worker.tests.test_local_skirt -v`: `40` test (`39` geçti, `1` explicit GPU testi atlandı).
-  - **K17 tamamlandı** (`6/6` synthetic 2-flow vakasında doğrulandı; git commit henüz oluşturulmadı).
-- **Tamamlanmayan diğer iş / sonraki mantıklı adım**:
-  - Kullanıcı onayıyla K17 değişikliklerinin commit edilmesi ve ayrı bir görev olarak kalan `K14` (`slender__skirt-untucked` doku/renk kayması) incelemesi.
+  - **K17 tamamlandı ve commit edildi** (`6/6` synthetic 2-flow vakasında doğrulandı; commit: `2102129`, K16 commit'i `dd9817d` üzerinde).
+- **Sonraki mantıklı adım (dönem kaydı)**:
+  - K17 değişikliklerinin commit edilmesinin (`2102129`) ardından `K14` (`slender__skirt-untucked` doku/renk kayması) ayrı görev olarak incelendi ve aşağıda belgelendi.
 
 ## K14 Kontrollü Maske Çapası Deneyi ve Geri Alma — 12 Kasım 2026
 
-- **Başlangıç durumu ve teşhis (`9f533974`, K17 commit `2102129932ea` sonrası)**:
+- **Başlangıç durumu ve teşhis (`9f533974`, K17 commit `2102129` sonrası)**:
   - `K14` (`slender + tshirt + tuckTop=false`) senaryosunda siyah eteğin sıcak kahverengi/bronza kaymasının K17 `restore_raw_background` adımından etkilenmediği (`ff710c72` ile `9f533974` arasında `02-skirt-raw.png` SHA-256 özdeş `720d9cc1b033`, etek içi `|raw - repaint| = 0.0000`) ve doğrudan CatVTON `02-skirt-raw.png` üretiminde oluştuğu doğrulandı. Baseline `9f533974` çekirdek etek bölgesi (`cat_y=480..565, x=315..450`): `RGB=[33.85, 30.33, 30.60]`, `R-B=+3.25`, `Lab=(11.78, +1.77, +0.45)`, K16 siyah pileli A-line etek silüeti korunuyor.
 - **Kontrollü deneme (`local_skirt_inputs.py`, `test_local_skirt.py`)**:
   - Yalnızca `narrow_silhouette and not tuck_top` dalında `waist` çapası merkez gövde sütunlarının `top` alt sınırı medyanına çekildi (`377 -> 354`); buna bağlı olarak `hip` (`489 -> 466`) ve `hem` (`558 -> 535`) değerleri de `23 px` yukarı kaydı.
@@ -373,7 +373,21 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Geri alma, testler ve kapanış durumu**:
   - K14 denemesinde `ai-worker/app/local_skirt_inputs.py` ve `ai-worker/tests/test_local_skirt.py` dosyalarına eklenen değişiklikler tamamen geri alındı; K16/K17 kabul edilmiş davranışları ve `9f533974` baseline'ı dahil tüm `6` profilin maske geometrisi (`hard_diff_px=0`, `soft_diff_px=0`) korundu.
   - Geri alma sonrası testler hatasız tamamlandı: `.venv` `125` test (`123` geçti, `2` atlandı), `.venv-catvton` `40` test (`39` geçti, `1` atlandı).
-  - Git çalışma ağacı `.git/HEAD` (`2102129932ea`) ve `.git/index` ile temiz (`modified tracked files: []`, yeni commit oluşturulmadı). K14'ün mevcut hafif sıcak renk kayması bilinen açık konu olarak bırakıldı.
+  - K14 denemesinin geri alınması ve belge kaydı sonrasında çalışma `e60a7ae` commit'i ile sabitlendi (`dd9817d` K16 ve `2102129` K17 baseline'ı korundu). K14'ün mevcut hafif sıcak renk kayması açık fakat ertelenmiş bilinen konu olarak bırakıldı; şu an yeni model deneyi yürütülmüyor.
+
+## Gerçek Pilot Pantolon Kaynağı Kabulü ve Pilot Bekleme Durumu — 12 Kasım 2026
+
+- **Korunan model/pipeline baseline'ı**:
+  - `K16` (`dd9817d`) ve `K17` (`2102129`) çözülmüş ve commit edilmiş baseline (`9f533974`) olarak korunmaktadır; `K14` (`e60a7ae`) açık fakat ertelenmiş, `K15` ise açık kalmaya devam etmektedir.
+- **Kabul edilen gerçek pilot pantolon kaynağı (`pilot-trousers`)**:
+  - `wide-trousers` üzerindeki AI-üretim etiketi ve kullanıcı eki pijama altı adayları elendikten sonra, gerçek mankenli ve AI etiketsiz `Mavi New York Kahverengi Gabardin Pantolon 101441-91340` (`1101117577`, Galeri 3) indirildi (Git dışı `data/pilot/trousers-product.jpg`, `621×931` RGB, SHA-256 `f8190f2c684d039f1f6a2a28274c23d6f70e95c4994ffdbc66ea533d4c4ec07c`; kaynak metadata'sı `data/pilot/sources.json`).
+  - [`evaluation/annotations/pilot-trousers.sam2.json`](../evaluation/annotations/pilot-trousers.sam2.json) tanımı (yalnızca ürün ID, SHA-256 ve normalize nokta koordinatları içerir; kişisel/hassas veri içermez) ve `runs/source-extraction-pilot-trousers-refined/` (`mask_sha256: 30ac381008f89e014b01d299d8afc22d4f53266c978abcc2aa4a4b8294b162d6`) üretildi; `pilot_runner.verify_pilot_extractions` doğrulamasından geçerek kabul edilmiş pantolon kaynağı olarak kaydedildi.
+- **İnsan fotoğrafı veri kaynakları incelemesi ve gerçek pilotun bekleme nedeni**:
+  - Üç farklı vücut yapısını (`slender`, `medium`, `fuller`) temsil eden yetişkin kadın tam boy fotoğrafları için incelenen kamuya açık ve stok veri setlerinde (VITON-HD, Dress Code, DeepFashion/MultiModal, FIT, Fashionpedia, Open Images, Wikimedia Commons, SHHQ, ModaNet, CIHP/LIP/ATR, BodyM, Unsplash, Pexels vb.) TryFitNext için gereken ticari kullanım ve doğrulanabilir model rızası koşulları birlikte doğrulanamadı.
+  - Bu nedenle `3` gönüllü yetişkin kadın katılımcı fotoğrafı (`data/pilot/target-{1,2,3}.jpg`) ve doğrulanabilir yazılı rıza kayıtları (`adult_confirmed`, `consent_confirmed`, `consent_record_id`, `retention_until`) temin edilinceye kadar gerçek `3×3` pilot **beklemeye alındı**.
+  - Mevcut `--synthetic-tech` / tekil sentetik pilot koşuları yalnızca teknik prova ve regresyon kontrolüdür (`effective_subject_diversity: 1`, `generalization_evidence: false`); **gerçek kullanıcı kalite kanıtı değildir**.
+- **Sonraki mantıklı adım**:
+  - Gönüllü katılımcı fotoğrafları ve rıza kayıtları beklenirken K16/K17 baseline'ını koruyarak katılımcı verisi gerektirmeyen teknik veya mimari işlerle devam etmek; fotoğraflar ve rızalar sağlandığında Git dışı gerçek manifest üzerinden `validate -> preflight -> run` adımlarıyla gerçek pilotu yeniden başlatmak.
 
 
 

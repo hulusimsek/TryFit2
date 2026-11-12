@@ -1,0 +1,45 @@
+{
+  "tool": "built-in image-generator subagent (text-to-image); no external CLI or paid API key",
+  "purpose": "Independent synthetic adult female target-person baseline photographs for local virtual try-on research pipeline, generated from scratch without cross-reference or input images",
+  "cross_reference_used": false,
+  "measured": false,
+  "continuous_height_weight_model": false,
+  "profiles": [
+    {
+      "id": "slender",
+      "body_group": "slender",
+      "image": "data/avatar-profiles/avatar-slender-indep.png",
+      "image_sha256": "9e9da196a01af258cdac044cc04351dcde0fd2d1cad2b7d1a9d3421fa8b82637",
+      "resolution": [848, 1264],
+      "aspect_ratio": "2:3",
+      "subagent_conversation_id": "23511664-dc81-40f2-8a85-be26e45d0ff9",
+      "seed": null,
+      "seed_notes": "Not exposed by image-generator tool",
+      "prompt": "Generate an uncluttered, high-resolution 2:3 vertical portrait photograph of a neutral synthetic adult female target-person for a local virtual try-on research pipeline. Do NOT use any reference image. Generate from scratch (text-to-image). Model & Identity specifications: Fictional adult woman, approximately 25 years old. Body build: Slender / petite frame with narrow shoulders, slim upper arms, slender waist, narrow hips, and slim straight legs. Facial & hair features: East Asian descent, distinct natural facial features, neat dark-brown bob hair kept behind the shoulders so the neck and shirt collar are fully visible, ears visible, friendly neutral facial expression. Pose: Standing straight facing the camera in a frontal full-body pose. Shoulders level. Arms relaxed and held approximately 8-10 cm away from the torso, creating clear visible separation at the waist and armpits. Hands completely open, palms/fingers fully visible and anatomically correct (5 fingers per hand). Legs straight, slightly apart. Bare feet flat on the ground with toes and ankles fully visible. Clothing (STRICT): Plain fitted light-grey short-sleeve crewneck T-shirt and plain fitted medium-grey ankle-length leggings. Absolutely plain: no logos, no text, no graphics, no pockets, no zippers, no visible stitching patterns. Environment & Lighting: Plain seamless pale-grey studio backdrop with soft, even daylight studio lighting. No shadows on background, no studio equipment, no accessories, no shoes. Composition: Full-body from head to bare feet completely within the frame, with safe margins at the top (above head) and bottom (below feet). Aspect ratio 2:3."
+    },
+    {
+      "id": "medium",
+      "body_group": "medium",
+      "image": "data/avatar-profiles/avatar-medium-indep.png",
+      "image_sha256": "235a8275be12dbcf8215ddc10a6528a7303ab46fdd2f8b7647a942d8423c334e",
+      "resolution": [848, 1264],
+      "aspect_ratio": "2:3",
+      "subagent_conversation_id": "1c8100f7-6721-424c-9c53-e41e62ea3a02",
+      "seed": null,
+      "seed_notes": "Not exposed by image-generator tool",
+      "prompt": "Generate an uncluttered, high-resolution 2:3 vertical portrait photograph of a neutral synthetic adult female target-person for a local virtual try-on research pipeline. Do NOT use any reference image. Generate from scratch (text-to-image). Model & Identity specifications: Fictional adult woman, approximately 28 years old. Body build: Medium / average natural adult frame, balanced shoulder width, natural waist curve, moderate hips and thighs, realistic proportions. Distinct from slender or plus-size frames. Facial & hair features: Caucasian descent with warm olive undertones, distinct natural facial features, wavy shoulder-length chestnut-brown hair neatly placed behind shoulders with face and collar fully visible, neutral direct gaze. Distinct face from any other model. Pose: Standing straight facing the camera in a frontal full-body pose. Shoulders level. Arms relaxed and held approximately 8-10 cm away from the torso, creating clear visible negative space at the waist and armpits. Hands completely open with all fingers clearly visible and anatomically correct (5 fingers per hand). Legs straight, slightly apart. Bare feet flat on the floor with toes and ankles completely visible. Clothing (STRICT): Plain fitted light-grey short-sleeve crewneck T-shirt and plain fitted medium-grey ankle-length leggings (identical in color, cut and fabric to a standard baseline). Absolutely plain: no logos, no text, no graphics, no pockets, no zippers, no visible patterns. Environment & Lighting: Plain seamless pale-grey studio backdrop with soft, even diffused studio lighting. No heavy shadows, no studio gear, no jewelry, no accessories, no shoes. Composition: Full-body from head to bare feet completely within the frame, with safe margins at the top (above head) and bottom (below feet). Aspect ratio 2:3."
+    },
+    {
+      "id": "fuller",
+      "body_group": "fuller",
+      "image": "data/avatar-profiles/avatar-fuller-indep.png",
+      "image_sha256": "17d83cec147c5af1669fe3ef7927c96548084626cf3941a4d57748e2b21dc9e6",
+      "resolution": [848, 1264],
+      "aspect_ratio": "2:3",
+      "subagent_conversation_id": "03cbd4ed-9b1f-4e53-ba0a-7b9e8bbc6e04",
+      "seed": null,
+      "seed_notes": "Not exposed by image-generator tool",
+      "prompt": "Generate an uncluttered, high-resolution 2:3 vertical portrait photograph of a neutral synthetic adult female target-person for a local virtual try-on research pipeline. Do NOT use any reference image. Generate from scratch (text-to-image). Model & Identity specifications: Fictional adult woman, approximately 33 years old. Body build: Fuller / plus-size authentic natural frame, distinctly broader shoulders, fuller upper arms, softly rounded abdomen and waist, noticeably wider hips and fuller thighs, realistic natural body proportions. Facial & hair features: Hispanic / Mediterranean descent with light-tan skin tone, distinct mature facial features, dark curly hair pulled back cleanly into a low ponytail behind shoulders, face and collar completely uncovered, calm neutral expression. Distinct identity from any other avatar. Pose: Standing straight facing the camera in a frontal full-body pose. Shoulders level. Arms resting naturally and held approximately 8-10 cm away from the torso, ensuring clear visible separation between arms and waist. Hands open with all fingers clearly visible and anatomically correct (5 fingers per hand). Legs straight, feet slightly wider apart for stable balance, bare feet flat on the floor with toes and ankles completely visible. Clothing (STRICT): Plain fitted light-grey short-sleeve crewneck T-shirt and plain fitted medium-grey ankle-length leggings (identical in color, cut and fabric to a standard baseline). Absolutely plain: no logos, no text, no graphics, no pockets, no zippers, no visible patterns. Environment & Lighting: Plain seamless pale-grey studio backdrop with soft, even diffused studio lighting. No heavy shadows, no studio gear, no jewelry, no accessories, no shoes. Composition: Full-body from head to bare feet completely within the frame, with safe margins at the top (above head) and bottom (below feet). Aspect ratio 2:3."
+    }
+  ]
+}

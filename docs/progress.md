@@ -408,6 +408,41 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Sonraki mantıklı adım**:
   - Gönüllü katılımcı fotoğrafları ve rıza kayıtları temin edildiğinde gerçek pilot koşusunu çalıştırmak ve iki bağımsız değerlendiricinin dolduracağı CSV dosyalarını `pilot_evaluator.py` ile sentezlemek.
 
+## Üç Bağımsız Sentetik Avatar ile Multi-Subject Teknik Pilot — 13 Kasım 2026
+
+- **Amaç ve Sınırlar**:
+  - Gerçek insan fotoğrafları ve rıza kayıtları temin edilinceye kadar teknik geliştirmeyi sürdürebilmek amacıyla; tekil bir temel görselden türetilmemiş, sıfırdan bağımsız üretilmiş 3 farklı sentetik yetişkin kadın avatarı (`slender`, `medium`, `fuller`) hazırlandı.
+  - Bu teknik pilot, **kesinlikle gerçek insan genellenebilirliği veya ürün kalite kapısı kanıtı değildir** (`generalization_evidence: false`, `manifest_kind: "synthetic_multisubject_pilot"`, `effective_subject_diversity: 3`).
+- **Üretilen Bağımsız Avatarlar ve Ön Doğrulamalar**:
+  - `data/avatar-profiles/avatar-slender-indep.png` (848×1264 RGB, SHA-256: `9e9da196a01af258cdac044cc04351dcde0fd2d1cad2b7d1a9d3421fa8b82637`)
+  - `data/avatar-profiles/avatar-medium-indep.png` (848×1264 RGB, SHA-256: `235a8275be12dbcf8215ddc10a6528a7303ab46fdd2f8b7647a942d8423c334e`)
+  - `data/avatar-profiles/avatar-fuller-indep.png` (848×1264 RGB, SHA-256: `17d83cec147c5af1669fe3ef7927c96548084626cf3941a4d57748e2b21dc9e6`)
+  - Her 3 avatar da sade açık gri tişört ve orta gri bilek boyu tayt ile bağımsız promptlarla sıfırdan üretildi. `fashn-human-parser` ile CPU preflight'ında üst (`label 3`), alt (`label 6`) ve ayak (`label 15`) etiketleri eksiksiz doğrulandı (`passed_skirt_requirements: true`, `passed_trousers_requirements: true`).
+  - `skirt_inputs` CPU üzerinde her 3 avatar için test edildi; hem `tuck_top=true` (bel kesimiyle) hem de `tuck_top=false` durumunda hatasız etek maskesi poligonu (10 nokta) ve handoff üretildi.
+- **Üretim Kaydı ve Manifest**:
+  - [`evaluation/annotations/avatar-profiles-independent.generation.json`](../evaluation/annotations/avatar-profiles-independent.generation.json): Promptlar, araç kimliği, piksel boyutları ve SHA-256 hash'leri kaydedildi.
+  - [`evaluation/manifests/pilot-synthetic-3subject.json`](../evaluation/manifests/pilot-synthetic-3subject.json): 3 hedef × 3 akış = 9 vaka (`slender`, `medium`, `fuller` × `top`, `skirt-tucked`, `skirt-untucked`). `same_base_identity: false`, `effective_subject_diversity: 3`, `derived_from_baseline: null`.
+- **Doğrulayıcı ve Koşucu İzolasyonu (`pilot_runner.py`, `pilot_evaluator.py`)**:
+  - `pilot_runner.py`: `validate_synthetic_pilot_manifest` fonksiyonu `synthetic_multisubject_pilot` türünü destekleyecek şekilde minimal olarak genişletildi. Bağımsız avatar hedeflerinde `target_origin: synthetic_independent_avatar`, `derived_from_base_image: null` ve diskte mevcut `generation_record` dosyası şart koşuldu. Hedef SHA-256 kopyalamaları, sahte rıza alanları, geçersiz çeşitlilik/kimlik değerleri engellendi. Gerçek insan pilotu doğrulayıcısı `validate_pilot_manifest` yeni manifesti reddedecek şekilde korundu. Eski `synthetic_technical_pilot` doğrulaması aynen muhafaza edildi.
+  - `pilot_evaluator.py`: `is_synthetic` kontrolüne `synthetic_multisubject_pilot` eklendi; `derive_expected_cases` fonksiyonunun 9 vakayı dinamik olarak türetebildiği doğrulandı.
+- **Birim Testler ve Doğrulama**:
+  - `ai-worker/tests/test_pilot.py`: 3 yeni test eklendi (`test_repo_multisubject_synthetic_manifest_contract_and_live_extractions`, `test_multisubject_synthetic_manifest_guards_and_rejections`, `test_end_to_end_9_case_multisubject_synthetic_mock_run_verifies_every_avatar_and_flow`). Test sayısı 33'ten 36'ya çıktı; tümü geçti (`36/36 OK`, 11.75s).
+  - `ai-worker/tests/test_pilot_evaluator.py`: 15 testin tamamı geçti (`15/15 OK`, 0.05s).
+  - `.venv` discover (`.\.venv\Scripts\python.exe -m unittest discover -s ai-worker\tests -v`): 143 testin 141'i geçti, 2'si atlandı (`141 passed, 2 skipped, 0 failed`).
+  - `.venv-catvton` test paketi: 40 testin 39'u geçti, 1'i atlandı (`39 passed, 1 skipped, 0 failed`).
+- **İlk 9-Vakalı GPU Koşusu (`runs/pilot-20261112T223705Z-20783618`) — 13 Kasım 2026**:
+  - Preflight doğrulaması (`runs/pilot-20261112T223633Z-83d71826`): Üç bağımsız avatar da CPU parser kontrolünü hatasız geçti (`passed_skirt_requirements: true`, `passed_trousers_requirements: true`, `missing_for_skirt_envelope: []`).
+  - 9 vakanın tamamı NVIDIA GeForce RTX 4060 Ti üzerinde başarıyla tamamlandı (`status: completed`, `9/9 completed`). Sıfır hata, sıfır parse engeli.
+  - VAE decode: 6 etek vakasının tamamında `mode: untiled` olarak gerçekleşti (OOM fallback gerekmedi).
+  - GPU VRAM: En yüksek ayrılan bellek `2.167 - 3.574 GiB` (reserved: `4.664 - 5.016 GiB`).
+  - Süreler: Tek parça tişört (`top_only`) vakaları ortalama `~39.9s`; iki aşamalı etek kombinleri toplam `~86.7s - 89.0s` (FASHN Phase 1: `~40.3 - 41.8s`, CatVTON Phase 2: `~45.9 - 47.6s`).
+  - Çıktılar: 9 vakanın tümünde `result.png` ve `comparison.jpg` üretildi; `pilot-summary.json` ve `review-template.csv` eksiksiz oluşturuldu.
+- **Henüz Tamamlanmayanlar / Sınırlar**:
+  - Çıktılar üzerinde henüz çift değerlendirici görsel kalite incelemesi yapılmadı; önceden tahminle kalite puanı atanmadı.
+  - Bu teknik koşu sentetik bir prova olup kesinlikle gerçek insan genellenebilirliği veya ürün kalite kapısı kanıtı değildir (`generalization_evidence: false`).
+  - Gerçek 3×3 insan pilotu izinli fotoğraflar temin edilene kadar beklemede kalmaya devam etmektedir.
+  - Sonraki mantıklı adım: İki değerlendiricinin `review-template.csv` çıktısını bağımsız olarak puanlaması ve sonuçların `pilot_evaluator.py` ile sentezlenmesi.
+
 
 
 

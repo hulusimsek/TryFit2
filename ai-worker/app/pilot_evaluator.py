@@ -418,7 +418,7 @@ def evaluate_pilot_run(
 
     is_synthetic = (
         summary.get("pilot_mode") == "synthetic_technical_rehearsal"
-        or summary.get("manifest_kind") == "synthetic_technical_pilot"
+        or summary.get("manifest_kind") in ("synthetic_technical_pilot", "synthetic_multisubject_pilot")
     )
 
     evaluation_report: dict[str, Any] = {

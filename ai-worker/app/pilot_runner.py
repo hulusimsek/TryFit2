@@ -34,8 +34,12 @@ ALLOWED_FLOW_ROLES = {"top": "tops", "trousers": "bottoms", "skirt": "bottoms"}
 ALLOWED_FLOW_TYPES = {"top_only", "top_plus_trousers", "top_plus_skirt"}
 REQUIRED_CORE_FLOWS = {("top_only", None), ("top_plus_trousers", False), ("top_plus_skirt", True)}
 SYNTHETIC_MANIFEST_KIND = "synthetic_technical_pilot"
+SYNTHETIC_MULTISUBJECT_MANIFEST_KIND = "synthetic_multisubject_pilot"
+SYNTHETIC_MANIFEST_KINDS = {SYNTHETIC_MANIFEST_KIND, SYNTHETIC_MULTISUBJECT_MANIFEST_KIND}
 SYNTHETIC_PILOT_MODE = "synthetic_technical_rehearsal"
 SYNTHETIC_TARGET_ORIGIN = "synthetic_visual_preset"
+SYNTHETIC_INDEPENDENT_TARGET_ORIGIN = "synthetic_independent_avatar"
+SYNTHETIC_TARGET_ORIGINS = {SYNTHETIC_TARGET_ORIGIN, SYNTHETIC_INDEPENDENT_TARGET_ORIGIN}
 REAL_CONSENT_FORBIDDEN_FIELDS = (
     "adult_confirmed",
     "consent_confirmed",
@@ -157,8 +161,8 @@ def _validate_target_common(root, target, identifier):
 
 def _validate_target(root, target):
     identifier = _require_safe_id(target.get("id"), "target")
-    if target.get("target_origin") == SYNTHETIC_TARGET_ORIGIN:
-        raise ValueError(f"Target {identifier}: synthetic preset targets cannot be used in real-person pilot.")
+    if target.get("target_origin") in SYNTHETIC_TARGET_ORIGINS:
+        raise ValueError(f"Target {identifier}: synthetic targets cannot be used in real-person pilot.")
     if target.get("adult_confirmed") is not True:
         raise ValueError(f"Target {identifier}: adult_confirmed must be true.")
     if target.get("consent_confirmed") is not True:
@@ -185,20 +189,31 @@ def _validate_synthetic_target(root, target, baseline_path):
             raise ValueError(
                 f"Synthetic target {identifier}: real consent field {forbidden!r} must not be populated on synthetic avatars."
             )
-    if target.get("target_origin") != SYNTHETIC_TARGET_ORIGIN:
-        raise ValueError(f"Synthetic target {identifier}: target_origin must be {SYNTHETIC_TARGET_ORIGIN!r}.")
-    derived_from = _require_nonempty_text(
-        target.get("derived_from_base_image"),
-        f"Synthetic target {identifier}: derived_from_base_image is required.",
-    )
-    if local_path(root, derived_from) != baseline_path:
-        raise ValueError(
-            f"Synthetic target {identifier}: derived_from_base_image must match derived_from_baseline."
+    expected_origin = SYNTHETIC_TARGET_ORIGIN if baseline_path is not None else SYNTHETIC_INDEPENDENT_TARGET_ORIGIN
+    if target.get("target_origin") != expected_origin:
+        raise ValueError(f"Synthetic target {identifier}: target_origin must be {expected_origin!r}.")
+    if baseline_path is not None:
+        derived_from = _require_nonempty_text(
+            target.get("derived_from_base_image"),
+            f"Synthetic target {identifier}: derived_from_base_image is required.",
         )
-    _require_nonempty_text(
+        if local_path(root, derived_from) != baseline_path:
+            raise ValueError(
+                f"Synthetic target {identifier}: derived_from_base_image must match derived_from_baseline."
+            )
+    else:
+        if target.get("derived_from_base_image") is not None:
+            raise ValueError(
+                f"Synthetic target {identifier}: derived_from_base_image must be null on independent synthetic avatars."
+            )
+    gen_record = _require_nonempty_text(
         target.get("generation_record"),
         f"Synthetic target {identifier}: generation_record is required.",
     )
+    if baseline_path is None and not local_path(root, gen_record).is_file():
+        raise ValueError(
+            f"Synthetic target {identifier}: generation_record {gen_record!r} does not exist on disk."
+        )
     return _validate_target_common(root, target, identifier)
 
 
@@ -322,9 +337,9 @@ def validate_pilot_manifest(manifest, root):
     if manifest.get("schema_version") != 1:
         raise ValueError("Unsupported pilot manifest schema_version.")
     if (
-        manifest.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
+        manifest.get("manifest_kind") in SYNTHETIC_MANIFEST_KINDS
         or manifest.get("generalization_evidence") is False
-        or manifest.get("same_base_identity") is True
+        or manifest.get("same_base_identity") in (True, False)
     ):
         raise ValueError("Synthetic technical pilot manifests cannot pass real-person pilot validation; use --synthetic-tech.")
     targets = manifest.get("targets")
@@ -368,19 +383,29 @@ def validate_synthetic_pilot_manifest(manifest, root):
     root = Path(root).resolve()
     if manifest.get("schema_version") != 1:
         raise ValueError("Unsupported synthetic pilot manifest schema_version.")
-    if manifest.get("manifest_kind") != SYNTHETIC_MANIFEST_KIND:
-        raise ValueError(f"Synthetic pilot manifest requires manifest_kind == {SYNTHETIC_MANIFEST_KIND!r}.")
+    kind = manifest.get("manifest_kind")
+    if kind not in SYNTHETIC_MANIFEST_KINDS:
+        raise ValueError(f"Synthetic pilot manifest requires manifest_kind in {sorted(SYNTHETIC_MANIFEST_KINDS)!r}.")
     if manifest.get("generalization_evidence") is not False:
         raise ValueError("Synthetic pilot manifest must explicitly declare generalization_evidence: false.")
-    if manifest.get("same_base_identity") is not True:
-        raise ValueError("Synthetic pilot manifest must explicitly declare same_base_identity: true.")
-    if manifest.get("effective_subject_diversity") != 1:
-        raise ValueError("Synthetic pilot manifest must explicitly declare effective_subject_diversity: 1.")
-    baseline = _require_nonempty_text(
-        manifest.get("derived_from_baseline"),
-        "Synthetic pilot manifest requires derived_from_baseline.",
-    )
-    baseline_path = local_path(root, baseline)
+    if kind == SYNTHETIC_MANIFEST_KIND:
+        if manifest.get("same_base_identity") is not True:
+            raise ValueError("Synthetic pilot manifest must explicitly declare same_base_identity: true.")
+        if manifest.get("effective_subject_diversity") != 1:
+            raise ValueError("Synthetic pilot manifest must explicitly declare effective_subject_diversity: 1.")
+        baseline = _require_nonempty_text(
+            manifest.get("derived_from_baseline"),
+            "Synthetic pilot manifest requires derived_from_baseline.",
+        )
+        baseline_path = local_path(root, baseline)
+    else:
+        if manifest.get("same_base_identity") is not False:
+            raise ValueError("Multi-subject synthetic pilot manifest must explicitly declare same_base_identity: false.")
+        if manifest.get("effective_subject_diversity") != 3:
+            raise ValueError("Multi-subject synthetic pilot manifest must explicitly declare effective_subject_diversity: 3.")
+        if manifest.get("derived_from_baseline") is not None:
+            raise ValueError("Multi-subject synthetic pilot manifest requires derived_from_baseline: null.")
+        baseline_path = None
     if manifest.get("included_flows") != SYNTHETIC_INCLUDED_FLOWS:
         raise ValueError(f"Synthetic pilot manifest included_flows must be {SYNTHETIC_INCLUDED_FLOWS!r}.")
     if manifest.get("excluded_flows") != SYNTHETIC_EXCLUDED_FLOWS:
@@ -391,7 +416,7 @@ def validate_synthetic_pilot_manifest(manifest, root):
     flows = manifest.get("flows")
     optional_controls = manifest.get("optional_controls", [])
     if not isinstance(targets, list) or len(targets) != 3:
-        raise ValueError("Synthetic pilot manifest requires exactly 3 synthetic preset targets.")
+        raise ValueError("Synthetic pilot manifest requires exactly 3 synthetic targets.")
     if not isinstance(products, list) or len(products) != 2:
         raise ValueError("Synthetic 2-flow pilot requires exactly 2 products (top and skirt; trousers excluded).")
     if not isinstance(flows, list) or not isinstance(optional_controls, list):
@@ -420,16 +445,27 @@ def _validate_manifest_for_mode(manifest, root, *, synthetic_tech=False):
 
 def _assert_mode_consistency(manifest, summary=None, *, synthetic_tech=False):
     if synthetic_tech:
-        if manifest.get("manifest_kind") != SYNTHETIC_MANIFEST_KIND:
-            raise ValueError("Synthetic phase requires a synthetic_technical_pilot manifest.")
-        if summary is not None and (
-            summary.get("pilot_mode") != SYNTHETIC_PILOT_MODE
-            or summary.get("manifest_kind") != SYNTHETIC_MANIFEST_KIND
-            or summary.get("generalization_evidence") is not False
-            or summary.get("same_base_identity") is not True
-            or summary.get("effective_subject_diversity") != 1
-        ):
-            raise ValueError("Run directory pilot-summary.json is not a valid synthetic technical rehearsal.")
+        kind = manifest.get("manifest_kind")
+        if kind not in SYNTHETIC_MANIFEST_KINDS:
+            raise ValueError("Synthetic phase requires a synthetic technical manifest.")
+        if summary is not None:
+            sum_kind = summary.get("manifest_kind")
+            if (
+                summary.get("pilot_mode") != SYNTHETIC_PILOT_MODE
+                or sum_kind not in SYNTHETIC_MANIFEST_KINDS
+                or summary.get("generalization_evidence") is not False
+            ):
+                raise ValueError("Run directory pilot-summary.json is not a valid synthetic technical rehearsal.")
+            if sum_kind == SYNTHETIC_MANIFEST_KIND and (
+                summary.get("same_base_identity") is not True
+                or summary.get("effective_subject_diversity") != 1
+            ):
+                raise ValueError("Run directory pilot-summary.json is not a valid synthetic technical rehearsal.")
+            if sum_kind == SYNTHETIC_MULTISUBJECT_MANIFEST_KIND and (
+                summary.get("same_base_identity") is not False
+                or summary.get("effective_subject_diversity") != 3
+            ):
+                raise ValueError("Run directory pilot-summary.json is not a valid synthetic multi-subject technical rehearsal.")
         if summary is not None and summary.get("single_case_mode"):
             cases = summary.get("cases") or []
             selected_id = summary.get("selected_case_id")
@@ -447,17 +483,17 @@ def _assert_mode_consistency(manifest, summary=None, *, synthetic_tech=False):
                 raise ValueError("Run directory pilot-summary.json has an invalid single-case execution_mode.")
         return
     if (
-        manifest.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
+        manifest.get("manifest_kind") in SYNTHETIC_MANIFEST_KINDS
         or manifest.get("generalization_evidence") is False
-        or manifest.get("same_base_identity") is True
+        or manifest.get("same_base_identity") in (True, False)
     ):
         raise ValueError("Synthetic technical pilot manifest cannot execute without --synthetic-tech.")
     if summary is not None and (
         "pilot_mode" in summary
         or summary.get("single_case_mode")
-        or summary.get("manifest_kind") == SYNTHETIC_MANIFEST_KIND
+        or summary.get("manifest_kind") in SYNTHETIC_MANIFEST_KINDS
         or summary.get("generalization_evidence") is False
-        or summary.get("same_base_identity") is True
+        or summary.get("same_base_identity") in (True, False)
     ):
         raise ValueError("Synthetic technical rehearsal run directory cannot execute without --synthetic-tech.")
 
@@ -1296,20 +1332,26 @@ def run_pilot(
         "cases": cases,
     }
     if synthetic_tech:
+        is_multi = manifest.get("manifest_kind") == SYNTHETIC_MULTISUBJECT_MANIFEST_KIND
         summary.update(
             pilot_mode=SYNTHETIC_PILOT_MODE,
-            manifest_kind=SYNTHETIC_MANIFEST_KIND,
+            manifest_kind=manifest.get("manifest_kind", SYNTHETIC_MANIFEST_KIND),
             generalization_evidence=False,
-            same_base_identity=True,
-            effective_subject_diversity=1,
+            same_base_identity=manifest.get("same_base_identity", False) if is_multi else True,
+            effective_subject_diversity=3 if is_multi else 1,
             distinct_target_sha256=True,
-            derived_from_base_image=manifest["derived_from_baseline"],
+            derived_from_base_image=manifest.get("derived_from_baseline"),
             target_sha256s={t["id"]: t["image_sha256"] for t in validated["targets"]},
             included_flows=list(manifest["included_flows"]),
             excluded_flows=list(manifest["excluded_flows"]),
             evidence_limits=(
-                "Synthetic presets all derive from avatar-baseline.png; effective subject diversity is 1 "
-                "and top_plus_trousers is excluded."
+                "Synthetic avatars represent 3 independent synthetic subjects; effective subject diversity is 3, "
+                "top_plus_trousers is excluded, and generalization evidence is not established."
+                if is_multi
+                else (
+                    "Synthetic presets all derive from avatar-baseline.png; effective subject diversity is 1 "
+                    "and top_plus_trousers is excluded."
+                )
             ),
         )
     if is_single_fashn_only:
@@ -1476,12 +1518,13 @@ def main(argv=None):
         pipeline = MaskedOutfitPipeline(args.root, validated_data["products"])
         result = run_parsing_preflight(args.root, validated_data["targets"], pipeline.hp_model, run_dir / "preflight")
         if args.synthetic_tech:
+            is_multi = manifest_data.get("manifest_kind") == SYNTHETIC_MULTISUBJECT_MANIFEST_KIND
             result.update(
                 pilot_mode=SYNTHETIC_PILOT_MODE,
-                manifest_kind=SYNTHETIC_MANIFEST_KIND,
+                manifest_kind=manifest_data.get("manifest_kind", SYNTHETIC_MANIFEST_KIND),
                 generalization_evidence=False,
-                same_base_identity=True,
-                effective_subject_diversity=1,
+                same_base_identity=manifest_data.get("same_base_identity", False) if is_multi else True,
+                effective_subject_diversity=3 if is_multi else 1,
             )
         write_json(run_dir / "parsing-preflight.json", result)
         print(run_dir, flush=True)

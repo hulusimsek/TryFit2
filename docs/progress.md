@@ -451,8 +451,24 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Sonraki Mantıklı Adım**:
   - Gemini ve Antigravity tarafından yapılan iki ayrı AI görsel değerlendirmesinin karşılaştırması tamamlanmış olup, bu incelemeler kesinlikle bir insan uzman değerlendirmesi değildir. Nihai karar ve olası pipeline değişiklikleri öncesinde insan uzman doğrulaması şarttır.
 
+## D15 Kararı Sonrası Sentetik Pilot Kalite Yeniden Değerlendirmesi — 13 Kasım 2026
 
-
-
-
+- **Değerlendirilen Koşu**:
+  - `runs/pilot-20261112T223705Z-20783618/` (3 bağımsız avatar × 3 akış = 9 vaka).
+- **Sonuç Dağılımı**:
+  - **4 PASS**, **5 FAIL**, **0 REVIEW**.
+- **Akış Bazında Değerlendirme**:
+  - **Tişört (`top_only`): 3/3 PASS.**
+    - `slender__top`, `medium__top` ve `fuller__top` vakalarının tamamı geçti. Siyah renk (`RGB: [26-29, 26-28, 31-34]`), bisiklet yaka ve basic kesim her üç vücut tipine de başarıyla oturdu; uzuv ve hedef anatomisi tam korundu. D15 Detay Yokluğu Kuralı uyarınca kaynakta bulunmayan aksesuar aranmadı.
+  - **Tucked Etek (`top_plus_skirt`, `tuck_top=true`): 0/3 PASS.**
+    - `slender__skirt-tucked`, `medium__skirt-tucked` ve `fuller__skirt-tucked` vakalarının üçü de kaldı. Kaynak etekteki kalın kemer tasarımı ve toka detayları korunamadı (slender ve medium'da toka 45-47 piksellik zayıf bir kalıntıya indirgendi, fuller'da kemer/toka 0 piksele inerek tamamen silindi). Pile derinliği ve dikey kat izleri difüzyon sonrası sönümlendi (`garment_identity: 2`, `waist_belt_transition: 1-2`).
+  - **Untucked Etek (`top_plus_skirt`, `tuck_top=false`): 1/3 PASS.**
+    - `medium__skirt-untucked` geçti (koyu nötr siyah/antrasit renk `RGB: [37, 36, 40]`, 9 vaka içindeki en yüksek pile netliği `Sobel_x: 15.00`).
+    - `slender__skirt-untucked` kaldı (belirgin sıcak kahverengi/bronz renk sapması `RGB: [56, 38, 33]`, siyah ürün kimliği kaybı nedeniyle `critical_failure: yes`).
+    - `fuller__skirt-untucked` kaldı (dolgun basende kumaşın gerilmesiyle derin pileler neredeyse tamamen açılarak düz kumaşa dönüştü, `Sobel_x: 7.35`, `fabric: 2`).
+- **Değerlendirme Sınırları ve İnsan Doğrulaması Şartı**:
+  - Bu değerlendirme Gemini ve Antigravity tarafından yapılan iki ayrı AI görsel incelemesine ve doğrudan sayısal piksel kanıtlarına dayanmaktadır; **kesinlikle bir insan uzman değerlendirmesi değildir**.
+  - Bu sonuçlar sentetik teknik pilot bulgularıdır; **kesinlikle gerçek insanlarda genellenebilirlik veya ürün kalite kapısı kanıtı değildir** (`generalization_evidence: false`).
+- **Sonraki Mantıklı Adım**:
+  - İnsan uzman değerlendiricinin sentetik pilot çıktılarını doğrulaması. **Bu insan doğrulaması tamamlanmadan önce pipeline, maske veya kod değişikliği yapılmayacaktır.**
 

@@ -472,3 +472,40 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Sonraki Mantıklı Adım**:
   - İnsan uzman değerlendiricinin sentetik pilot çıktılarını doğrulaması. **Bu insan doğrulaması tamamlanmadan önce pipeline, maske veya kod değişikliği yapılmayacaktır.**
 
+## D15 Bağımsız İnsan (Kullanıcı) Değerlendirmesi — 13 Kasım 2026
+
+- **Değerlendirilen Koşu ve Paket**:
+  - `runs/pilot-20261112T223705Z-20783618/` (3 bağımsız sentetik avatar × 3 akış = 9 vaka).
+  - `evaluation/human-review/d15-synthetic-pilot/` altında kör/anonimleştirilmiş (`H01`–`H09`) paket üzerinden bağımsız kullanıcı tarafından gerçekleştirilmiştir.
+- **Değerlendirici Niteliği ve Kapsam**:
+  - Bu değerlendirme bir **bağımsız son kullanıcı değerlendirmesidir**; kesinlikle profesyonel bir tekstil/hazır giyim uzmanı değerlendirmesi değildir.
+  - Çalışma sentetik teknik pilot avatarları üzerinde yapılmıştır; **kesinlikle gerçek insanlarda genellenebilirlik veya ürün kalite kapısı kanıtı değildir** (`generalization_evidence: false`).
+- **Nihai İnsan Değerlendirme Sonuçları**:
+  - **4 PASS**, **5 FAIL**, **0 REVIEW**.
+  - Vaka Bazında Kararlar ve Gözlemler:
+    - `H01` (`medium__skirt-tucked`): **FAIL** — `fabric: 2`; pile derinliği ve kumaş dokusu yeterince korunmamış.
+    - `H02` (`medium__top`): **PASS** — Üst giyim transferi, renk ve kesim başarılı.
+    - `H03` (`medium__skirt-untucked`): **FAIL** — `color_pattern: 2`, `waist_belt_transition: 2`; tişört-etek birleşimi (tişörtün kısmen içeri kaçması) ve kemer/kumaş tonu sorunlu.
+    - `H04` (`fuller__skirt-tucked`): **FAIL** — `stage1_preservation` son insan değerlendirmesinde 4 olarak düzeltilmiştir; ancak `garment_identity: 1` ve `waist_belt_transition: 1` (kemer ve tokanın tamamen kaybolması) nedeniyle kalmıştır.
+    - `H05` (`fuller__skirt-untucked`): **FAIL** — `cut: 2`; etek boyu kaynak üründen farklı ve tişört altında beyaz sınır/hale izi gözlemlenmiş.
+    - `H06` (`slender__skirt-tucked`): **PASS** — `fabric: 4`, `waist_belt_transition: 3`; etek ucunda sınırlı saydamlaşma ve tişörtün kemeri kısmen örtmesi not edilmiş, ancak genel deneme başarılı bulunmuştur.
+    - `H07` (`fuller__top`): **PASS** — Üst giyim transferi ve silüet başarılı.
+    - `H08` (`slender__top`): **PASS** — Üst giyim transferi ve silüet başarılı.
+    - `H09` (`slender__skirt-untucked`): **FAIL** — `garment_identity: 0`, `critical_failure: yes`; kaynak ve sonuç eteklerinin tamamen farklı ürün izlenimi vermesi (ciddi renk sapması).
+- **AI Değerlendirmeleri (Gemini & Antigravity) ile Karşılaştırma**:
+  - **Toplam Dağılım:** Her iki değerlendirme grubu da genel toplamda **4 PASS / 5 FAIL** sonucuna ulaşmıştır.
+  - **Tam Uzlaşma Sağlanan 7 Vaka (İttifak):**
+    - `H01` (`medium__skirt-tucked`): 3 değerlendirici de **FAIL**.
+    - `H02` (`medium__top`): 3 değerlendirici de **PASS**.
+    - `H04` (`fuller__skirt-tucked`): 3 değerlendirici de **FAIL**.
+    - `H05` (`fuller__skirt-untucked`): 3 değerlendirici de **FAIL**.
+    - `H07` (`fuller__top`): 3 değerlendirici de **PASS**.
+    - `H08` (`slender__top`): 3 değerlendirici de **PASS**.
+    - `H09` (`slender__skirt-untucked`): 3 değerlendirici de **FAIL**.
+  - **Ayrışan 2 Vaka:**
+    - `H03` (`medium__skirt-untucked`): **İnsan FAIL**, **AI PASS**. AI değerlendirmeleri eteği izole inceleyip pile netliğine odaklanırken; kullanıcı tişört-etek birleşimindeki asimetrik içeri kaçmayı ve ton farkını kusur olarak değerlendirmiştir.
+    - `H06` (`slender__skirt-tucked`): **İnsan PASS**, **AI FAIL**. AI değerlendirmeleri katı D15 kuralıyla kemerin incelmesini ve tokanın küçülmesini doğrudan ihlal sayarken; kullanıcı merkezdeki tokayı görmüş ve dökümlü tişörtün kemeri kısmen örtmesini doğal bir giyim durumu sayarak sonuca geçer not vermiştir.
+  - İnsan kararları bağımsız nihai kullanıcı değerlendirmesi olarak korunmuş, AI sonuçlarına göre değiştirilmemiştir.
+- **Sonraki Mantıklı Adım**:
+  - H03 ve H06 vakalarında ortaya çıkan kullanıcı toleransları (doğal tişört dökümü / kemer örtülmesi ve kombin ton uyumu) doğrultusunda D15 tolerans çerçevesinin netleştirilmesi.
+  - İnsan doğrulamasının bulguları ışığında, gerçek insan pilotuna geçmeden önce pipeline ve maske iyileştirme yol haritasının belirlenmesi.

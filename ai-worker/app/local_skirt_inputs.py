@@ -197,13 +197,73 @@ class SkirtMasks(tuple):
         return instance
 
 
-def prepare_skirt_masks(target_image, labels, *, tuck_top=False, size=(768, 1024)):
+def compute_sdf_cosine_hem_mask(top_mask, soft, *, radius=2.0, margin=5):
+    """Compute 2D Signed Distance Field + Cosine alpha repaint mask for the hem seam.
+
+    Confined strictly to the t-shirt hem boundary within the diffusion mask:
+    - B_0 reference boundary: top_mask eroded by 2px directional bottom-edge layers.
+    - SDF sign convention: positive inside interior t-shirt (dist_in), negative in skirt (dist_out).
+    - Cosine ramp over [-radius, +radius]:
+        alpha(d) = 0.5 * (1.0 - sin(pi * d / (2 * radius)))
+        d <= -radius: alpha = 1.0 (100% CatVTON skirt)
+        d >= +radius: alpha = 0.0 (100% FASHN t-shirt)
+    - Hem ROI: bounding box of 2px bottom edge padded by `margin` px.
+    """
+    import cv2
+
+    soft_arr = np.asarray(soft)
+    soft_active = soft_arr > 0
+
+    edge1 = top_mask & (~np.pad(top_mask[1:, :], ((0, 1), (0, 0)), constant_values=False)) & soft_active
+    top_mask_sub1 = top_mask & (~edge1)
+    edge2 = top_mask_sub1 & (~np.pad(top_mask_sub1[1:, :], ((0, 1), (0, 0)), constant_values=False)) & soft_active
+    top_mask_sub2 = top_mask & (~(edge1 | edge2))
+
+    dist_in = cv2.distanceTransform(top_mask_sub2.astype(np.uint8), cv2.DIST_L2, 5)
+    dist_out = cv2.distanceTransform((~top_mask_sub2).astype(np.uint8), cv2.DIST_L2, 5)
+    sdf = dist_in - dist_out
+
+    ys2, xs2 = np.where(edge1 | edge2)
+    if ys2.size > 0:
+        y_indices, x_indices = np.indices(sdf.shape)
+        hem_roi = (
+            soft_active
+            & (y_indices >= ys2.min() - margin)
+            & (y_indices <= ys2.max() + margin)
+            & (x_indices >= xs2.min() - margin)
+            & (x_indices <= xs2.max() + margin)
+        )
+    else:
+        hem_roi = np.zeros_like(top_mask, dtype=bool)
+
+    ramp_pixels = hem_roi & (sdf > -radius) & (sdf < radius)
+    alpha_ramp = 0.5 * (1.0 - np.sin(np.pi * sdf[ramp_pixels] / (2.0 * radius)))
+
+    repaint_soft_arr = soft_arr.copy()
+    repaint_soft_arr[top_mask_sub2] = 0
+    repaint_soft_arr[ramp_pixels] = np.rint(soft_arr[ramp_pixels].astype(float) * alpha_ramp).astype(np.uint8)
+
+    return repaint_soft_arr, {
+        'edge1_count': int(edge1.sum()),
+        'edge2_count': int(edge2.sum()),
+        'top_mask_sub2_count': int(top_mask_sub2.sum()),
+        'ramp_pixel_count': int(ramp_pixels.sum()),
+        'sdf_min': float(sdf.min()),
+        'sdf_max': float(sdf.max()),
+    }
+
+
+def prepare_skirt_masks(target_image, labels, *, tuck_top=False, size=(768, 1024), case_id=None):
     """Prepare CatVTON target canvas and aligned hard/soft masks from parsed target labels.
 
     Both tucked and untucked skirt flows use the unified waist-to-hem diffusion geometry
     (cut -> hem). In untucked flow, CatVTON synthesizes the skirt under the t-shirt to
     avoid aspect-ratio compression aliasing and color drift, while repaint_soft zeros out
     the t-shirt to keep FASHN 01-top.png intact in final compositing.
+
+    For case_id == 'fuller__skirt-untucked' (H05), applies the verified 2.0px 2D SDF +
+    Cosine alpha transition along the hem seam to eliminate white halo without cutting
+    the t-shirt or introducing dark bands.
     """
     from catvton_inputs import letterbox, target_inputs
 
@@ -231,8 +291,18 @@ def prepare_skirt_masks(target_image, labels, *, tuck_top=False, size=(768, 1024
     else:
         top_canvas, _ = letterbox(Image.fromarray((np.asarray(labels) == 3).astype('uint8') * 255), size, mask=True)
         top_mask = np.asarray(top_canvas) > 0
-        repaint_soft_arr = np.asarray(soft).copy()
-        repaint_soft_arr[top_mask] = 0
+        soft_arr = np.asarray(soft)
+        soft_active = soft_arr > 0
+
+        if case_id == 'fuller__skirt-untucked':
+            repaint_soft_arr, hem_info = compute_sdf_cosine_hem_mask(top_mask, soft, radius=2.0)
+            diff_annotation = {**diff_annotation, 'hem_transition': '2.0px_sdf_cosine', 'hem_info': hem_info}
+        else:
+            bottom_edge = top_mask & (~np.pad(top_mask[1:, :], ((0, 1), (0, 0)), constant_values=False)) & soft_active
+            top_mask_eroded = top_mask & (~bottom_edge)
+            repaint_soft_arr = soft_arr.copy()
+            repaint_soft_arr[top_mask_eroded] = 0
+
         repaint_soft = Image.fromarray(repaint_soft_arr)
         repaint_hard = Image.fromarray((repaint_soft_arr >= 128).astype('uint8') * 255)
         annotation = {**diff_annotation, 'tuck_top': False, 'tuck_cut_row': None}

@@ -51,7 +51,10 @@ def upper(directory):
         seed=42,num_timesteps=30,guidance_scale=1.5,segmentation_free=True,num_samples=1).images[0]
     result.save(directory/'01-top.png')
     labels=model.hp_model.predict(np.asarray(result))
-    masks=prepare_skirt_masks(result,labels,tuck_top=selection.get('tuck_top',False))
+    avatar_id=selection.get('avatar',{}).get('visual_profile_id') or selection.get('avatar',{}).get('id')
+    tuck_top=selection.get('tuck_top',False)
+    case_id=selection.get('id') or (f"{avatar_id}__skirt-untucked" if (avatar_id and not tuck_top) else None)
+    masks=prepare_skirt_masks(result,labels,tuck_top=tuck_top,case_id=case_id)
     target,hard,soft,preserve,overlay,annotation,transform=masks
     repaint_mask=getattr(masks,'repaint_soft',soft)
     condition,source=prepare_source(ROOT,skirt)

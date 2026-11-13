@@ -543,3 +543,49 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Sonraki Mantıklı Adım**:
   - Kod değişikliklerinin GitHub Desktop üzerinden incelenmesi.
   - Kullanıcı onayıyla, `fuller__skirt-untucked` (H05) için kontrollü tek vakalık GPU A/B testinin çalıştırılarak görsel kalitenin (siyah kumaş kimliği ve pilelerin) doğrulanması.
+
+## H05 2.0px 2D SDF + Cosine Alfa Geçişi Kalıcı Üretim Entegrasyonu ve GPU Doğrulaması — 13 Kasım 2026
+
+- **Kapsam ve Amaç**:
+  - `fuller__skirt-untucked` (H05) vakasında FASHN `01-top.png` tişörtünün alt sınırındaki antialias kalıntılarının oluşturduğu beyaz haloyu, kumaşı jiletle kesmeden ve siyah bant oluşturmadan gidermek amacıyla test edilen ve onaylanan **2.0px 2D SDF + Cosine alpha** yönteminin üretim koduna kalıcı ve kontrollü entegrasyonu.
+- **Deneysel Geçmiş ve Karşılaştırma Kararları**:
+  - *1px binary baseline*: Beyaz halo nedeniyle başarısız.
+  - *2px binary erosion*: Siyah bant ve yapay kesilmiş tişört hem'i nedeniyle başarısız.
+  - *E5-12 CPU simülasyonu*: Yapay piksel koyulaştırma nedeniyle reddedildi.
+  - *2.0px 2D SDF + Cosine alpha*: CPU simülasyonu, gerçek GPU doğrulaması ve bağımsız Gemini görsel değerlendirmesinde 4/4 tam puan alarak **PASS** oldu.
+- **Gerçek GPU Doğrulama Kanıtları**:
+  - NVIDIA GeForce RTX 4060 Ti üzerinde 50 difüzyon adımı ile CatVTON modeli çalıştırıldı.
+  - Süre: 39.29 sn, Bellek: Peak Allocated 3.574 GiB, Peak Reserved 4.676 GiB.
+  - GPU difüzyon çıktısı üzerindeki 2.0px SDF/Cosine sonucu ile CPU simülasyon sonucu bit-for-bit karşılaştırıldı: `max_diff = 0`.
+  - Bağımsız Gemini görsel değerlendirmesi: `seam_naturalness: 4`, `fabric_continuity: 4`, `halo_absence: 4`, `black_band_absence: 4`, `overall_naturalness: 4`, nihai karar: **PASS**.
+- **Üretim Kod Değişiklikleri**:
+  - `ai-worker/app/local_skirt_inputs.py`:
+    - `compute_sdf_cosine_hem_mask(top_mask, soft, *, radius=2.0, margin=5)` fonksiyonu eklendi:
+      - 2px yönlü alt kenar erozyonu ile referans kumaş sınırı $B_0$ belirlendi.
+      - 2D Euclidean mesafe dönüşümü (`cv2.distanceTransform`, `DIST_L2`, mask=5) ile $SDF = dist_{in} - dist_{out}$ hesaplandı (tişört içi pozitif, etek bölgesi negatif).
+      - Alt kenar ROI sınırları dinamik bounding box ile sınırlandı; uzuv ve arka plan alanlarına sızıntı önlendi.
+      - $R=2.0$ px aralığında $[-R, +R]$ yumuşak kosinüs rampası uygulandı: $\alpha(d) = 0.5 \times (1.0 - \sin(\pi d / (2R)))$.
+    - `prepare_skirt_masks(target_image, labels, *, tuck_top=False, size=(768, 1024), case_id=None)`:
+      - Yalnızca `case_id == "fuller__skirt-untucked"` koşulunda `compute_sdf_cosine_hem_mask` çağrılır ve manifest anotasyonuna `hem_transition: "2.0px_sdf_cosine"` ile metrikler eklenir.
+      - Diğer tüm profiller ve varsayılan akışlar mevcut 1px erozyon baz hattını korur.
+  - `ai-worker/app/local_skirt.py`:
+    - Seçim parametrelerinden avatar kimliği ve tuck durumu okunarak `case_id` türetildi ve `prepare_skirt_masks` çağrısına aktarıldı.
+  - `ai-worker/app/pilot_runner.py`:
+    - `_prepare_skirt_case` fonksiyonunda `case_id=case_record.get("id")` parametresi `prepare_skirt_masks` çağrısına bağlandı.
+  - `ai-worker/tests/test_local_skirt.py`:
+    - `test_fuller_untucked_sdf_cosine_alpha_transition` birim testi eklendi:
+      - Cosine ramp simetrisi ($\alpha(d) + \alpha(-d) = 1.0$), sınır değerleri ($\alpha(2.0)=0.0$, $\alpha(-2.0)=1.0$) ve monoton azalanlık doğrulandı.
+      - İzolasyon testi: `fuller__skirt-untucked` altında SDF/Cosine aktifken, `slender`, `medium` ve varsayılan untucked çağrılarında 1px baz hattının korunduğu, `tuck_top=true` çağrılarında ise maskenin etkilenmediği doğrulandı.
+      - H05 disk verisi üzerinde `edge1_count=226`, `edge2_count=226`, `ramp_pixel_count=619` değerleri birebir teyit edildi.
+- **Doğrulama ve Test Sonuçları**:
+  - `ai-worker/tests/test_local_skirt.py`: 18/18 PASS.
+  - `ai-worker/tests/test_pilot.py`: 36/36 PASS.
+  - .NET derlemesi (`dotnet build TryFit.sln --no-restore`): 0 hata, 0 uyarı.
+  - Üretim kodu `prepare_skirt_masks` ile üretilen tam H05 nihai sonucu ile onaylanan GPU referansı (`gpu_sdf_cosine_20_result.png`) karşılaştırması: `max_diff = 0` (Bit-for-bit identical).
+- **Kapsam Dışı ve Açık Kalan Konular**:
+  - Bu değişiklik kesinlikle yalnızca `fuller__skirt-untucked` (H05) için etkinleştirilmiştir. İnce/orta profillere, tucked akışına veya pantolonlara yayılmamıştır.
+  - K14 bilinen sorunu açılmamış, dokunulmamıştır.
+  - Git commit veya push yapılmamıştır; değişiklikler yerel inceleme için hazırlanmıştır.
+- **Sonraki Mantıklı Adım**:
+  - Değişikliklerin GitHub Desktop üzerinden incelenmesi ve kullanıcı tarafından commit edilmesi.
+  - Kalan avatar profilleri (`slender`, `medium`) ve etek tokası/kemer koruması konularının sonraki aşamada ele alınması.

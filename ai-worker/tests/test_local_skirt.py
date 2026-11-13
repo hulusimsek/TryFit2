@@ -9,7 +9,7 @@ import torch
 import numpy as np
 from PIL import Image
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'app'))
-from local_skirt_inputs import prepare_skirt_masks, skirt_inputs
+from local_skirt_inputs import compute_sdf_cosine_hem_mask, prepare_skirt_masks, skirt_inputs
 from catvton_inputs import letterbox
 import local_skirt
 from experiment import sha256
@@ -532,7 +532,11 @@ class SkirtRuntimeTests(unittest.TestCase):
 
         top_canvas, _ = letterbox(Image.fromarray((labels == 3).astype('uint8') * 255), (768, 1024), mask=True)
         top_mask = np.asarray(top_canvas) > 0
-        self.assertEqual(int((rep_u[top_mask] > 0).sum()), 0, 'Repaint mask must have zero alpha on t-shirt')
+        soft_active = soft_u > 0
+        bottom_edge = top_mask & (~np.pad(top_mask[1:, :], ((0, 1), (0, 0)), constant_values=False)) & soft_active
+        tshirt_interior = top_mask & (~bottom_edge)
+        self.assertEqual(int((rep_u[tshirt_interior] > 0).sum()), 0, 'Repaint mask must have zero alpha on interior t-shirt')
+        self.assertEqual(int((rep_u[top_mask] > 0).sum()), int(bottom_edge.sum()), 'Only the 1px bottom edge is released to repaint mask for de-haloing')
 
         # Skirt region below t-shirt (rows 427..551 @ 859 -> rows ~510..657 @ 1024) must be fully active
         exposed_skirt_row = round(480 * sy)
@@ -581,8 +585,11 @@ class SkirtRuntimeTests(unittest.TestCase):
         mask_f = (np.asarray(masks.repaint_soft).astype(np.float32) / 255.0)[:, :, None]
         repainted = np.rint(raw_arr.astype(np.float32) * mask_f + target_canvas.astype(np.float32) * (1.0 - mask_f)).astype(np.uint8)
 
-        # 1. T-shirt region is bit-for-bit identical to target_canvas
-        self.assertTrue(np.array_equal(repainted[top_mask], target_canvas[top_mask]))
+        # 1. Interior t-shirt region is bit-for-bit identical to target_canvas
+        soft_active = np.asarray(masks.soft) > 0
+        bottom_edge = top_mask & (~np.pad(top_mask[1:, :], ((0, 1), (0, 0)), constant_values=False)) & soft_active
+        tshirt_interior = top_mask & (~bottom_edge)
+        self.assertTrue(np.array_equal(repainted[tshirt_interior], target_canvas[tshirt_interior]))
 
         # 2. Skirt region below t-shirt is jet-black CatVTON output
         exposed_skirt = np.asarray(masks.repaint_soft) == 255
@@ -662,6 +669,67 @@ class SkirtRuntimeTests(unittest.TestCase):
             self.assertTrue(np.array_equal(seen_masks['diffusion'], diff_mask_arr))
             # Repaint used cat-repaint-mask.png (only rows 31..44)
             self.assertTrue(np.array_equal(seen_masks['repaint'], repaint_mask_arr))
+
+    def test_fuller_untucked_sdf_cosine_alpha_transition(self):
+        # 1. Mathematical properties of Cosine ramp and SDF sign convention
+        # alpha(d) = 0.5 * (1 - sin(pi * d / (2 * R))) with R = 2.0
+        # Check symmetry, boundary values, and monotonicity
+        R = 2.0
+        alpha_fn = lambda d: 0.5 * (1.0 - np.sin(np.pi * np.clip(d, -R, R) / (2.0 * R)))
+        self.assertAlmostEqual(alpha_fn(0.0), 0.5)
+        self.assertAlmostEqual(alpha_fn(R), 0.0)
+        self.assertAlmostEqual(alpha_fn(-R), 1.0)
+        self.assertAlmostEqual(alpha_fn(1.0) + alpha_fn(-1.0), 1.0)
+        self.assertLess(alpha_fn(1.0), alpha_fn(0.0))
+        self.assertLess(alpha_fn(0.0), alpha_fn(-1.0))
+
+        # 2. Scope isolation in prepare_skirt_masks
+        height, width = 859, 576
+        labels = np.zeros((height, width), dtype=np.uint8)
+        labels[177:427, 200:376] = 3   # t-shirt
+        labels[427:769, 190:386] = 6   # lower body
+        labels[768:827, 220:356] = 15  # feet
+        target = Image.new('RGB', (width, height), (208, 207, 208))
+
+        # (a) Fuller untucked: activates 2.0px SDF + Cosine alpha transition
+        masks_fuller = prepare_skirt_masks(target, labels, tuck_top=False, case_id="fuller__skirt-untucked")
+        self.assertEqual(masks_fuller.annotation.get('hem_transition'), '2.0px_sdf_cosine')
+        info = masks_fuller.annotation.get('hem_info')
+        self.assertIsNotNone(info)
+        self.assertGreater(info['ramp_pixel_count'], 0)
+        self.assertGreater(info['top_mask_sub2_count'], 0)
+
+        # (b) Slender/medium untucked: remains strictly on 1px baseline
+        masks_slender = prepare_skirt_masks(target, labels, tuck_top=False, case_id="slender__skirt-untucked")
+        self.assertIsNone(masks_slender.annotation.get('hem_transition'))
+        masks_default = prepare_skirt_masks(target, labels, tuck_top=False)
+        self.assertIsNone(masks_default.annotation.get('hem_transition'))
+        self.assertTrue(np.array_equal(np.asarray(masks_slender.repaint_soft), np.asarray(masks_default.repaint_soft)))
+
+        # (c) Tucked flow: remains unchanged regardless of case_id
+        masks_tucked_fuller = prepare_skirt_masks(target, labels, tuck_top=True, case_id="fuller__skirt-untucked")
+        masks_tucked_default = prepare_skirt_masks(target, labels, tuck_top=True)
+        self.assertTrue(np.array_equal(np.asarray(masks_tucked_fuller.repaint_soft), np.asarray(masks_tucked_default.repaint_soft)))
+
+        # 3. Validation on actual H05 case data if present on disk
+        h05_dir = Path(__file__).resolve().parents[2] / 'runs/pilot-20261113T145635Z-6a48526a/cases/fuller__skirt-untucked'
+        if (h05_dir / 'parsing-post-top.png').is_file() and (h05_dir / 'cat-soft-mask.png').is_file():
+            labels_preview = np.array(Image.open(h05_dir / 'parsing-post-top.png'))
+            is_upper = (labels_preview[:, :, 0] == 60) & (labels_preview[:, :, 1] == 140) & (labels_preview[:, :, 2] == 240)
+            soft_img = Image.open(h05_dir / 'cat-soft-mask.png').convert('L')
+            top_canvas, _ = letterbox(Image.fromarray(is_upper.astype('uint8') * 255), (768, 1024), mask=True)
+            top_mask = np.asarray(top_canvas) > 0
+
+            m_arr, h05_info = compute_sdf_cosine_hem_mask(top_mask, np.array(soft_img), radius=2.0)
+            self.assertEqual(h05_info['edge1_count'], 226)
+            self.assertEqual(h05_info['edge2_count'], 226)
+            self.assertEqual(h05_info['ramp_pixel_count'], 619)
+            self.assertEqual(h05_info['top_mask_sub2_count'], 63850)
+
+            # Deep interior t-shirt (row 350, col 384) must be strictly 0
+            self.assertEqual(m_arr[350, 384], 0)
+            # Exposed skirt below hem (row 600, col 384) must be 255
+            self.assertEqual(m_arr[600, 384], 255)
 
 
 if __name__=='__main__':unittest.main()

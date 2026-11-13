@@ -983,7 +983,7 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
         return
     try:
         masks = prepare_skirt_masks(
-            top_image, labels, tuck_top=bool(case_record["tuck_top"])
+            top_image, labels, tuck_top=bool(case_record["tuck_top"]), case_id=case_record.get("id")
         )
         target_canvas, hard, soft, preserve, overlay, annotation, transform = masks
     except ValueError as error:

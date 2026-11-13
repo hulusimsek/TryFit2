@@ -38,6 +38,20 @@ Bir virtual try-on sonucu yalnızca kıyafet kategorisi veya genel rengi doğru 
 - **Kritik Hata Gerekçesi:** Kaynak üründe belirgin olan kemer, toka veya derin pilelerin tamamen yok olması ya da bambaşka bir tasarıma dönüşmesi `garment_identity` puanını 3'ün altına düşürür; ürünün tanınamaz hale geldiği veya bambaşka bir ürün izlenimi verdiği durumlarda `critical_failure=yes` tetiklenir.
 - **Geçmiş Koşuların Durumu:** Bu karar mevcut/geçmiş GPU pilot sonuçlarını geriye dönük olarak otomatik değiştirmez; arşivlenmiş teknik pilot kayıtları (`runs/*`) olduğu gibi korunur. Ancak mevcut ve yeni sonuçlar bu kalite kabul kriteri çerçevesinde bağımsız değerlendiriciler tarafından değerlendirilir.
 
+### Etek-Tişört Birleşim Hattı Değerlendirme Protokolü ve H05 SDF/Cosine Geçiş Kapsamı (Karar D16)
+
+Untucked etek kombinlerinde (`top_plus_skirt`, `tuck_top=false`) üst giysinin alt kenarı (hem) ile alt giysinin birleşim hattı görsel kalite ve ürün bütünlüğü açısından özel bir inceleme gerektirir:
+
+- **İncelenecek Kusurlar:**
+  - **Beyaz / Açık Renkli Halo:** Tişört alt sınırındaki eski giysi/arka plan antialias kalıntılarının difüzyon veya maske boşluğu nedeniyle beyaz çizgi/şerit oluşturması.
+  - **Siyah Bant / Aşırı Koyulaşma:** Maskenin aşırı derin kesilmesiyle kumaş dokusunun kaybolması ve siyah boyayla çizilmiş gibi yapay bant oluşması.
+  - **Kumaş Dokusu ve Kesim Sürekliliği:** Tişörtün doğal dökümü ve alt dikiş hattı korunmalı, jiletle kesilmiş gibi düzleştirilmemelidir. Etek pileleri ve dokusu birleşim hattından etkilenmemelidir.
+  - **Uzuv ve Arka Plan İzolasyonu:** Bilek, el, parmak veya arka plan alanlarına hiçbir birleşim müdahalesi sızmamalıdır.
+
+- **Kapsam Sınırı:**
+  - 2.0px 2D Signed Distance Field + Cosine alfa geçişi (`compute_sdf_cosine_hem_mask`), görsel ve teknik olarak yalnızca `fuller__skirt-untucked` (H05) vakasında doğrulanmış ve kabul edilmiştir.
+  - Bu yöntem diğer vücut profillerine (`slender`, `medium`), tucked akışına (`tuck_top=true`) veya pantolon kombinasyonlarına genellenmemiştir; bu akışlar kendi onaylı baz hatlarını korur.
+
 Kombin bütünlüğü için ayrıca `untargeted_changes=yes/no` kaydedilir: seçilmeyen kıyafetin kısalması, kaynak ayakkabı/kolye/iç üstün de taşınması gibi değişiklikler `yes` olur ve örneği başarısız yapar. Bu alan vücut şekli puanından ayrıdır. Yeni CSV'de boş bırakılırsa değerlendirme tamamlanmış sayılmaz; eski CSV şemalarında alan bulunmayabilir. İlk 10 ürünlük rapor sekiz puana ek olarak bu daha sıkı kombin koruma kontrolünü içerir; oran bu rubriğe bağlı görsel ön değerlendirmedir.
 
 Tek örneğin geçmesi: sekiz puanın tamamı >=3 ve kritik hata yok. Önerilen araştırma kapısı: on örneğin en az sekizi geçmeli. Üretilmeyen örnekler onluk paydaya dahildir. Tek ürün denemesi kapıyı geçiremez. Henüz puanlanmayan üretilmiş örnekler varsa kapı `pending` kalır.

@@ -509,3 +509,37 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Sonraki Mantıklı Adım**:
   - H03 ve H06 vakalarında ortaya çıkan kullanıcı toleransları (doğal tişört dökümü / kemer örtülmesi ve kombin ton uyumu) doğrultusunda D15 tolerans çerçevesinin netleştirilmesi.
   - İnsan doğrulamasının bulguları ışığında, gerçek insan pilotuna geçmeden önce pipeline ve maske iyileştirme yol haritasının belirlenmesi.
+
+## H05 D15 Kök Neden Çözümü: Sanal Etek Üstü (Virtual Upper Skirt Under-Top) İlk Kontrollü CPU İmplementasyonu — 13 Kasım 2026
+
+- **Amaç**:
+  - `fuller__skirt-untucked` (H05) vakasında etek boyu düzeltmesi (551 px) sonrasında difüzyon maskesinin aşırı dikey sıkışması (en-boy oranı ~1.75) ve ten difüzyon sızıntısı nedeniyle ortaya çıkan bronz/kahverengi renk kayması ve kazayağı/ızgara doku bozulmasını çözmek.
+  - Untucked etek akışında CatVTON'a doğal belden (`cut`) etek ucuna (`hem`) kadar tam boy mini etek geometrisi (~1.20 en-boy oranı) vererek siyah kumaş kimliğini ve pileleri korumak; nihai görüntüde FASHN `01-top.png` tişörtünü `cat-repaint-mask` ile öne alarak untucked görünümü korumak.
+- **Gerçekleştirilen Kod Değişiklikleri**:
+  - `ai-worker/app/local_skirt_inputs.py`:
+    - `SkirtMasks(tuple)` alt sınıfı tanımlandı: Eski 7 elemanlı demet arity'si (`target, hard, soft, preserve, overlay, annotation, transform`) geriye dönük %100 uyumlulukla korundu; ek olarak `.repaint_soft` ve `.repaint_hard` öznitelikleri sağlandı.
+    - `prepare_skirt_masks`: Hem tucked hem untucked akışlar için CatVTON difüzyon maskesi doğal belden (`cut`) etek ucuna (`hem`) kadar tam boy üretildi. Untucked akışta `repaint_soft` maskesinde tişört pikselleri (`labels == 3`) letterbox koordinatlarında sıfırlandı; böylece nihai boyamada tişörtün orijinal pikselleri korunurken, tişört altında sanal olarak üretilen siyah mini etek açığa çıkarıldı.
+  - `ai-worker/app/local_skirt.py`:
+    - `verify_prepared()`: `cat-repaint-mask.png` isteğe bağlı/opsiyonel dosya olarak tanımlandı; hem 6 dosyalı eski işler hem 7 dosyalı yeni işler hash doğrulamasından başarıyla geçer hale getirildi.
+    - `upper()`: `cat-repaint-mask.png` dosyası diske kaydedildi ve `skirt-handoff.json` manifestine eklendi.
+    - `lower()`: `cat-repaint-mask.png` mevcutsa yüklendi, `restore_raw_background()` ve `repaint_result()` adımlarına aktarıldı (yoksa geriye dönük uyumlulukla `mask` kullanıldı).
+  - `ai-worker/app/pilot_runner.py`:
+    - `_prepare_skirt_case`: `cat-repaint-mask.png` dosyası iş dizinine kaydedildi ve `skirt-handoff.json` manifestine eklendi.
+  - `ai-worker/tests/test_local_skirt.py`:
+    - 3 yeni CPU birim testi eklendi:
+      1. `test_virtual_undertop_untucked_skirt_diffusion_and_repaint_masks`: Untucked difüzyon maskesinin belden eteğe tam boy uzandığını, repaint maskesinde tişörtün 0 olduğunu, etek bölgesinin aktif kaldığını ve uzuvların korunduğunu doğrular.
+      2. `test_virtual_undertop_compositing_preserves_tshirt_and_leaves_zero_gap`: Nihai boyamada tişört piksellerinin %100 korunduğunu, etek piksellerinin aktarıldığını ve tişört alt kenarı ile etek başlangıcı arasında sıfır boşluk (kesintisiz dikiş) olduğunu doğrular.
+      3. `test_lower_loads_cat_repaint_mask_when_present`: `lower()` aşamasının `cat-repaint-mask.png` dosyasını tespit edip repaint aşamasına doğru şekilde verdiğini izole mock ile doğrular.
+- **Doğrulama ve Test Sonuçları**:
+  - `ai-worker/tests/test_local_skirt.py`: 17/17 PASS.
+  - `ai-worker/tests/test_pilot.py`: 36/36 PASS.
+  - Tam test keşfi (`discover -s ai-worker/tests`): 147/147 PASS (2 skipped, 0 fail).
+  - Git diff kontrolü: `git diff --check` temiz (boşluk/satır sonu hatası yok).
+- **Kapsam Dışı ve Henüz Yapılmayanlar**:
+  - Kesinlikle GPU çalıştırılmadı; CatVTON modeli veya FASHN inference tetiklenmedi (saf CPU implementasyonu).
+  - Değişiklikler commit veya push edilmedi; çalışma ağacı yerel inceleme için temiz bırakıldı.
+  - K14 kesinlikle açılmadı; ertelenmiş durumu korundu.
+  - H03 veya toka/kemer konularına ayrı bir müdahale yapılmadı.
+- **Sonraki Mantıklı Adım**:
+  - Kod değişikliklerinin GitHub Desktop üzerinden incelenmesi.
+  - Kullanıcı onayıyla, `fuller__skirt-untucked` (H05) için kontrollü tek vakalık GPU A/B testinin çalıştırılarak görsel kalitenin (siyah kumaş kimliği ve pilelerin) doğrulanması.

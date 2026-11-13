@@ -29,7 +29,10 @@ def verify_prepared(directory):
     record=json.loads((directory/'skirt-handoff.json').read_text(encoding='utf-8'))
     if sha256(directory/'selection.json')!=record['selection_sha256']:raise ValueError('Selection changed')
     required={'01-top.png','cat-target.png','cat-hard-mask.png','cat-soft-mask.png','cat-preserve.png','cat-condition.png'}
-    if set(record['files'])!=required:raise ValueError('Unexpected prepared artifacts')
+    optional={'cat-repaint-mask.png'}
+    record_files=set(record['files'])
+    if not (required <= record_files <= (required | optional)):
+        raise ValueError('Unexpected prepared artifacts')
     for name,digest in record['files'].items():
         if sha256(local_path(directory,name))!=digest:raise ValueError('Prepared artifact changed')
     return record
@@ -48,12 +51,15 @@ def upper(directory):
         seed=42,num_timesteps=30,guidance_scale=1.5,segmentation_free=True,num_samples=1).images[0]
     result.save(directory/'01-top.png')
     labels=model.hp_model.predict(np.asarray(result))
-    target,hard,soft,preserve,overlay,annotation,transform=prepare_skirt_masks(result,labels,tuck_top=selection.get('tuck_top',False))
+    masks=prepare_skirt_masks(result,labels,tuck_top=selection.get('tuck_top',False))
+    target,hard,soft,preserve,overlay,annotation,transform=masks
+    repaint_mask=getattr(masks,'repaint_soft',soft)
     condition,source=prepare_source(ROOT,skirt)
     for name,image in [('cat-target.png',target),('cat-hard-mask.png',hard),('cat-soft-mask.png',soft),
-                       ('cat-preserve.png',preserve),('cat-mask-preview.jpg',overlay),('cat-condition.png',condition)]:
+                       ('cat-preserve.png',preserve),('cat-mask-preview.jpg',overlay),('cat-condition.png',condition),
+                       ('cat-repaint-mask.png',repaint_mask)]:
         image.save(directory/name)
-    files=['01-top.png','cat-target.png','cat-hard-mask.png','cat-soft-mask.png','cat-preserve.png','cat-condition.png']
+    files=['01-top.png','cat-target.png','cat-hard-mask.png','cat-soft-mask.png','cat-preserve.png','cat-condition.png','cat-repaint-mask.png']
     write_json(directory/'skirt-handoff.json',{'selection_sha256':sha256(directory/'selection.json'),
         'files':{name:sha256(directory/name) for name in files},'annotation':annotation,'target_transform':transform,
         'source':source,'upper_source_masks':model.provenance,'upper_elapsed_seconds':round(time.perf_counter()-start,2)})
@@ -243,6 +249,11 @@ def lower(directory):
         torch.manual_seed(42);np.random.seed(42)
         target=load_rgb(directory/'cat-target.png')
         with Image.open(directory/'cat-soft-mask.png') as opened:mask=opened.copy()
+        repaint_path=directory/'cat-repaint-mask.png'
+        if repaint_path.is_file():
+            with Image.open(repaint_path) as opened:repaint_mask=opened.copy()
+        else:
+            repaint_mask=mask
         if use_cuda:
             torch.cuda.reset_peak_memory_stats();torch.cuda.synchronize()
         generator=torch.Generator(device='cuda' if use_cuda else 'cpu').manual_seed(42)
@@ -251,8 +262,8 @@ def lower(directory):
             generator=generator,eta=1.0)[0]
         if use_cuda:
             torch.cuda.synchronize()
-        raw_for_repaint=restore_raw_background(raw,target,mask)
-        primary=repaint_result(raw_for_repaint,target,mask)
+        raw_for_repaint=restore_raw_background(raw,target,repaint_mask)
+        primary=repaint_result(raw_for_repaint,target,repaint_mask)
         raw.save(directory/'02-skirt-raw.png');primary.save(directory/'02-skirt-repaint.png')
         write_json(directory/'catvton-outcome.json',{'status':'completed','raw_sha256':sha256(directory/'02-skirt-raw.png'),
             'output_sha256':sha256(directory/'02-skirt-repaint.png'),'elapsed_seconds':round(time.perf_counter()-start,2),

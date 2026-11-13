@@ -982,9 +982,10 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
         case_record.update(status="parse_blocked", upper_elapsed_seconds=elapsed, error=reason)
         return
     try:
-        target_canvas, hard, soft, preserve, overlay, annotation, transform = prepare_skirt_masks(
+        masks = prepare_skirt_masks(
             top_image, labels, tuck_top=bool(case_record["tuck_top"])
         )
+        target_canvas, hard, soft, preserve, overlay, annotation, transform = masks
     except ValueError as error:
         _cleanup_stage2_artifacts(case_dir, final_status="parse_blocked", reason=str(error))
         case_record.update(
@@ -996,6 +997,7 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
         return
 
     condition, source_meta = prepare_source(root, skirt_product)
+    repaint_mask = getattr(masks, "repaint_soft", soft)
 
     for name, image in (
         ("cat-target.png", target_canvas),
@@ -1004,10 +1006,19 @@ def _prepare_skirt_case(root, target, top_product, skirt_product, case_dir, pipe
         ("cat-preserve.png", preserve),
         ("cat-mask-preview.jpg", overlay),
         ("cat-condition.png", condition),
+        ("cat-repaint-mask.png", repaint_mask),
     ):
         image.save(case_dir / name)
 
-    files = ["01-top.png", "cat-target.png", "cat-hard-mask.png", "cat-soft-mask.png", "cat-preserve.png", "cat-condition.png"]
+    files = [
+        "01-top.png",
+        "cat-target.png",
+        "cat-hard-mask.png",
+        "cat-soft-mask.png",
+        "cat-preserve.png",
+        "cat-condition.png",
+        "cat-repaint-mask.png",
+    ]
     write_json(
         case_dir / "skirt-handoff.json",
         {

@@ -496,5 +496,172 @@ class SkirtRuntimeTests(unittest.TestCase):
             self.assertLess(hem_u_y, knee_boundary, f'{name}: hem must be above knee boundary')
             self.assertLess(hem_u_y, 640 - 75, f'{name}: hem must not extend to patellar zone (>=640)')
 
+    def test_virtual_undertop_untucked_skirt_diffusion_and_repaint_masks(self):
+        # Verify Virtual Upper Skirt Under-Top architecture:
+        # Untucked diffusion mask must span from natural waist (cut) to hem (~1.20 aspect ratio),
+        # while repaint mask must zero out the t-shirt to restore 01-top.png in final compositing.
+        height, width = 859, 576
+        labels = np.zeros((height, width), dtype=np.uint8)
+        labels[177:427, 200:376] = 3  # fuller t-shirt rows 177..426
+        labels[427:769, 190:386] = 6  # legs/pants rows 427..768
+        labels[768:827, 220:356] = 15 # feet rows 768..826
+        labels[265:430, 150:175] = 12 # left arm
+        labels[430:480, 150:172] = 13 # left hand
+        labels[265:430, 400:425] = 12 # right arm
+        labels[430:480, 403:425] = 13 # right hand
+        target = Image.new('RGB', (width, height), (208, 207, 208))
+
+        masks_u = prepare_skirt_masks(target, labels, tuck_top=False)
+        masks_t = prepare_skirt_masks(target, labels, tuck_top=True)
+
+        # 1. Diffusion mask (soft/hard) is unified between tucked and untucked:
+        # Both span from natural waist (cut=371 @ 859 -> row ~442 @ 1024) down to hem (~657 @ 1024).
+        soft_u = np.asarray(masks_u.soft)
+        soft_t = np.asarray(masks_t.soft)
+        self.assertTrue(np.array_equal(soft_u, soft_t), 'Diffusion masks must be identical for tucked and untucked')
+
+        # Verify diffusion mask is active under the t-shirt (virtual upper skirt region)
+        sy = 1024.0 / 859.0
+        virtual_skirt_row = round(400 * sy)  # row 400 is inside t-shirt (177..426), below cut (371)
+        self.assertGreater(soft_u[virtual_skirt_row, 384], 0, 'Virtual upper skirt must be active in diffusion')
+
+        # 2. Repaint mask: untucked zeroes out the t-shirt, tucked keeps it active
+        rep_u = np.asarray(masks_u.repaint_soft)
+        rep_t = np.asarray(masks_t.repaint_soft)
+        self.assertTrue(np.array_equal(rep_t, soft_t), 'Tucked repaint mask must equal diffusion mask')
+
+        top_canvas, _ = letterbox(Image.fromarray((labels == 3).astype('uint8') * 255), (768, 1024), mask=True)
+        top_mask = np.asarray(top_canvas) > 0
+        self.assertEqual(int((rep_u[top_mask] > 0).sum()), 0, 'Repaint mask must have zero alpha on t-shirt')
+
+        # Skirt region below t-shirt (rows 427..551 @ 859 -> rows ~510..657 @ 1024) must be fully active
+        exposed_skirt_row = round(480 * sy)
+        self.assertEqual(rep_u[exposed_skirt_row, 384], soft_u[exposed_skirt_row, 384])
+        self.assertGreater(rep_u[exposed_skirt_row, 384], 200)
+
+        # 3. Protected regions (hands, feet, outer background) must never enter repaint mask
+        arm_canvas, _ = letterbox(Image.fromarray(np.isin(labels, [12, 13]).astype('uint8') * 255), (768, 1024), mask=True)
+        self.assertEqual(int(((rep_u > 0) & (np.asarray(arm_canvas) > 0)).sum()), 0)
+        feet_canvas, _ = letterbox(Image.fromarray((labels == 15).astype('uint8') * 255), (768, 1024), mask=True)
+        self.assertEqual(int(((rep_u > 0) & (np.asarray(feet_canvas) > 0)).sum()), 0)
+
+        # 4. Backward-compatible 7-tuple arity and property access
+        t, h, s, p, o, a, tr = masks_u
+        self.assertEqual(len(masks_u), 7)
+        self.assertIs(masks_u.target, t)
+        self.assertIs(masks_u.soft, s)
+        self.assertIs(masks_u.hard, h)
+        self.assertFalse(a['tuck_top'])
+        self.assertIsNone(a['tuck_cut_row'])
+
+    def test_virtual_undertop_compositing_preserves_tshirt_and_leaves_zero_gap(self):
+        # Simulate final compositing: repaint_result with virtual under-top repaint mask
+        height, width = 859, 576
+        labels = np.zeros((height, width), dtype=np.uint8)
+        labels[177:427, 200:376] = 3  # t-shirt
+        labels[427:769, 190:386] = 6  # lower body
+        labels[768:827, 220:356] = 15 # feet
+
+        # Target has a distinct textured t-shirt in 01-top.png
+        target_arr = np.full((height, width, 3), (208, 207, 208), dtype=np.uint8)
+        target_arr[177:427, 200:376] = (20, 24, 28)
+        target_arr[426, 200:376] = (45, 50, 55)  # t-shirt hem highlight stitch
+        target_im = Image.fromarray(target_arr)
+
+        masks = prepare_skirt_masks(target_im, labels, tuck_top=False)
+        target_canvas = np.asarray(masks.target)
+        top_canvas, _ = letterbox(Image.fromarray((labels == 3).astype('uint8') * 255), (768, 1024), mask=True)
+        top_mask = np.asarray(top_canvas) > 0
+
+        # Raw output from CatVTON generating jet-black skirt
+        raw_arr = target_canvas.copy()
+        raw_arr[np.asarray(masks.hard) > 0] = (22, 21, 23)
+
+        # Repaint using masks.repaint_soft
+        mask_f = (np.asarray(masks.repaint_soft).astype(np.float32) / 255.0)[:, :, None]
+        repainted = np.rint(raw_arr.astype(np.float32) * mask_f + target_canvas.astype(np.float32) * (1.0 - mask_f)).astype(np.uint8)
+
+        # 1. T-shirt region is bit-for-bit identical to target_canvas
+        self.assertTrue(np.array_equal(repainted[top_mask], target_canvas[top_mask]))
+
+        # 2. Skirt region below t-shirt is jet-black CatVTON output
+        exposed_skirt = np.asarray(masks.repaint_soft) == 255
+        self.assertTrue(exposed_skirt.any())
+        self.assertTrue(np.array_equal(repainted[exposed_skirt], raw_arr[exposed_skirt]))
+
+        # 3. Continuity check: at every column where the t-shirt ends, the skirt immediately begins below it
+        for col in range(250, 350):
+            tshirt_rows = np.where(top_mask[:, col])[0]
+            if len(tshirt_rows):
+                last_tshirt_row = tshirt_rows.max()
+                next_row = last_tshirt_row + 1
+                self.assertGreater(masks.repaint_soft.getpixel((col, next_row)), 0,
+                                  f'Gap detected at col {col}: row {next_row} has zero repaint alpha')
+
+    def test_lower_loads_cat_repaint_mask_when_present(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            weights = root / 'ai-worker/models/catvton'
+            weights.mkdir(parents=True)
+            (weights / 'provenance.json').write_text(json.dumps({'files': []}), encoding='utf-8')
+
+            job = root / 'runs/local-jobs' / ('d' * 32)
+            job.mkdir(parents=True)
+            (job / 'selection.json').write_text('{}', encoding='utf-8')
+
+            target_arr = np.full((64, 48, 3), (208, 207, 208), dtype=np.uint8)
+            diff_mask_arr = np.zeros((64, 48), dtype=np.uint8)
+            diff_mask_arr[20:44, 14:34] = 255  # covers waist rows 20..30 and skirt 31..44
+            repaint_mask_arr = np.zeros((64, 48), dtype=np.uint8)
+            repaint_mask_arr[31:44, 14:34] = 255  # only covers exposed skirt rows 31..44
+
+            names = [
+                '01-top.png', 'cat-target.png', 'cat-hard-mask.png', 'cat-soft-mask.png',
+                'cat-preserve.png', 'cat-condition.png', 'cat-repaint-mask.png'
+            ]
+            for name in names:
+                if name == 'cat-target.png':
+                    Image.fromarray(target_arr).save(job / name)
+                elif name == 'cat-soft-mask.png' or name == 'cat-hard-mask.png':
+                    Image.fromarray(diff_mask_arr).save(job / name)
+                elif name == 'cat-repaint-mask.png':
+                    Image.fromarray(repaint_mask_arr).save(job / name)
+                elif name == 'cat-preserve.png':
+                    Image.fromarray((diff_mask_arr == 0).astype('uint8') * 255).save(job / name)
+                else:
+                    Image.new('RGB', (48, 64), (20, 30, 40)).save(job / name)
+
+            (job / 'skirt-handoff.json').write_text(json.dumps({
+                'selection_sha256': sha256(job / 'selection.json'),
+                'files': {name: sha256(job / name) for name in names},
+            }), encoding='utf-8')
+
+            seen_masks = {}
+
+            class _CaptureModel:
+                last_decode_info = None
+                last_error_stage = None
+
+                def __call__(self, **kwargs):
+                    seen_masks['diffusion'] = np.asarray(kwargs['mask']).copy()
+                    return [Image.new('RGB', (48, 64), (22, 21, 23))]
+
+            def _capture_repaint(_raw, _tgt, msk):
+                seen_masks['repaint'] = np.asarray(msk).copy()
+                return _raw
+
+            fake_utils = SimpleNamespace(repaint_result=_capture_repaint)
+            fake_probe = SimpleNamespace(pipeline=lambda _w: _CaptureModel())
+            with patch.object(local_skirt, 'ROOT', root), \
+                 patch.dict(sys.modules, {'utils': fake_utils, 'catvton_probe': fake_probe}), \
+                 patch('torch.cuda.is_available', return_value=False):
+                local_skirt.lower(job)
+
+            # CatVTON diffusion used cat-soft-mask.png (spanned rows 20..44)
+            self.assertTrue(np.array_equal(seen_masks['diffusion'], diff_mask_arr))
+            # Repaint used cat-repaint-mask.png (only rows 31..44)
+            self.assertTrue(np.array_equal(seen_masks['repaint'], repaint_mask_arr))
+
 
 if __name__=='__main__':unittest.main()

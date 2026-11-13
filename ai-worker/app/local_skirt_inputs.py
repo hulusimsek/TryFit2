@@ -180,19 +180,42 @@ def skirt_inputs(labels, *, tuck_top=False):
     return annotation,Image.fromarray(protected.astype('uint8')*255),Image.fromarray(np.rint(background_alpha*255).astype('uint8'))
 
 
+class SkirtMasks(tuple):
+    """Container preserving 7-tuple return arity while providing repaint masks."""
+    def __new__(cls, target, hard, soft, preserve, overlay, annotation, transform, *,
+                repaint_soft=None, repaint_hard=None):
+        instance = super().__new__(cls, (target, hard, soft, preserve, overlay, annotation, transform))
+        instance.target = target
+        instance.hard = hard
+        instance.soft = soft
+        instance.preserve = preserve
+        instance.overlay = overlay
+        instance.annotation = annotation
+        instance.transform = transform
+        instance.repaint_soft = repaint_soft if repaint_soft is not None else soft
+        instance.repaint_hard = repaint_hard if repaint_hard is not None else hard
+        return instance
+
+
 def prepare_skirt_masks(target_image, labels, *, tuck_top=False, size=(768, 1024)):
-    """Prepare CatVTON target canvas and aligned hard/soft masks from parsed target labels."""
+    """Prepare CatVTON target canvas and aligned hard/soft masks from parsed target labels.
+
+    Both tucked and untucked skirt flows use the unified waist-to-hem diffusion geometry
+    (cut -> hem). In untucked flow, CatVTON synthesizes the skirt under the t-shirt to
+    avoid aspect-ratio compression aliasing and color drift, while repaint_soft zeros out
+    the t-shirt to keep FASHN 01-top.png intact in final compositing.
+    """
     from catvton_inputs import letterbox, target_inputs
 
-    annotation, preserve, background_alpha = skirt_inputs(labels, tuck_top=tuck_top)
+    diff_annotation, diff_preserve, diff_bg_alpha = skirt_inputs(labels, tuck_top=True)
     target, _, soft, _, transform = target_inputs(
         target_image,
-        annotation,
+        diff_annotation,
         size=size,
-        preserve_mask=preserve,
+        preserve_mask=diff_preserve,
         blur_radius=0,
     )
-    fade, fade_transform = letterbox(background_alpha, size, mask=True)
+    fade, fade_transform = letterbox(diff_bg_alpha, size, mask=True)
     if fade_transform != transform:
         raise ValueError('Fade mask and target geometry differ')
     soft = Image.fromarray(np.rint(np.asarray(soft).astype(float) * np.asarray(fade) / 255).astype('uint8'))
@@ -200,4 +223,28 @@ def prepare_skirt_masks(target_image, labels, *, tuck_top=False, size=(768, 1024
     preview = np.array(target)
     edited = np.asarray(hard) > 0
     preview[edited] = (preview[edited] * .5 + np.array([0, 180, 120]) * .5).astype('uint8')
-    return target, hard, soft, preserve, Image.fromarray(preview), annotation, transform
+
+    if tuck_top:
+        repaint_soft = soft.copy()
+        repaint_hard = hard.copy()
+        annotation = diff_annotation
+    else:
+        top_canvas, _ = letterbox(Image.fromarray((np.asarray(labels) == 3).astype('uint8') * 255), size, mask=True)
+        top_mask = np.asarray(top_canvas) > 0
+        repaint_soft_arr = np.asarray(soft).copy()
+        repaint_soft_arr[top_mask] = 0
+        repaint_soft = Image.fromarray(repaint_soft_arr)
+        repaint_hard = Image.fromarray((repaint_soft_arr >= 128).astype('uint8') * 255)
+        annotation = {**diff_annotation, 'tuck_top': False, 'tuck_cut_row': None}
+
+    return SkirtMasks(
+        target,
+        hard,
+        soft,
+        diff_preserve,
+        Image.fromarray(preview),
+        annotation,
+        transform,
+        repaint_soft=repaint_soft,
+        repaint_hard=repaint_hard,
+    )

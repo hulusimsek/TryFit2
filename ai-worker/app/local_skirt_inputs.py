@@ -143,7 +143,7 @@ def skirt_inputs(labels, *, tuck_top=False):
     end=min(height-1,max(int(garments.max() if len(garments) else ys.max()),int(feet_y.min()))+max(2,round(height*.005)))
     waist=cut if tuck_top else int(top_y.max())
     hip=min(end-1,waist+round(height*.13))
-    hem=min(end-1,max(hip,waist+round(height*.21)))
+    hem=min(end-1,max(hip,cut+round(height*.21)))
     knee=min(end-1,max(hem,waist+round(height*.27)))
     low_rows=lower & (np.indices(labels.shape)[0]>=np.quantile(ys,.8))
     low_x=np.where(low_rows)[1]

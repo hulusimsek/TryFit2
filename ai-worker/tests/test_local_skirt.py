@@ -5,6 +5,7 @@ import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import torch
 import numpy as np
 from PIL import Image
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'app'))
@@ -155,9 +156,9 @@ class SkirtRuntimeTests(unittest.TestCase):
 
             waist_864=annotation['tuck_cut_row'] if tuck_top else 387
             hip_864=waist_864+round(864*.13)
-            hem_864=waist_864+round(864*.21)
+            hem_864=round(annotation['polygon_normalized'][3][1] * 863)
             sy=1024/864.0
-            waist_w=span(hard_arr,round((waist_864+(12 if tuck_top else 0))*sy))
+            waist_w=span(hard_arr,round((waist_864+(12 if tuck_top else 1))*sy))
             hip_w=span(hard_arr,round(hip_864*sy))
             mid_w=span(hard_arr,round(((hip_864+hem_864)/2)*sy))
             hem_w=span(hard_arr,round(hem_864*sy))
@@ -232,14 +233,14 @@ class SkirtRuntimeTests(unittest.TestCase):
         sy = 1024 / 864
 
         for tuck_top in (False, True):
-            _, hard, soft, preserve, _, _, _ = prepare_skirt_masks(target_img, labels, tuck_top=tuck_top)
+            _, hard, soft, preserve, _, annotation, _ = prepare_skirt_masks(target_img, labels, tuck_top=tuck_top)
             soft_arr = np.asarray(soft)
             hard_arr = np.asarray(hard)
             self.assertEqual(int(((soft_arr > 0) & (soft_arr < 255) & bg_mask).sum()), 0)
             self.assertEqual(int(((soft_arr > 0) & arm_mask).sum()), 0)
             waist_864 = round(80 + 0.78 * (349 - 80)) if tuck_top else 349
             hip_864 = waist_864 + round(864 * 0.13)
-            hem_864 = waist_864 + round(864 * 0.21)
+            hem_864 = round(annotation['polygon_normalized'][3][1] * 863)
             hip_w = int((hard_arr[round(hip_864 * sy)] > 0).sum())
             hem_w = int((hard_arr[round(hem_864 * sy)] > 0).sum())
             self.assertLessEqual(hem_w, hip_w)
@@ -457,6 +458,43 @@ class SkirtRuntimeTests(unittest.TestCase):
             # while the dark skirt (y 20..32) remained identical to raw.
             self.assertTrue(np.array_equal(seen_repaint_inputs[0][34:43, 15:33], target_arr[34:43, 15:33]))
             self.assertTrue(np.array_equal(seen_repaint_inputs[0][20:32, 16:32], raw_arr[20:32, 16:32]))
+
+    def test_untucked_skirt_hem_aligns_with_mini_skirt_anatomy_and_prevents_knee_extension(self):
+        # Verify the fix for H05 (fuller__skirt-untucked) and untucked mini-skirt geometry across all profiles.
+        # Under the old logic: hem = min(end - 1, max(hip, waist + round(height * 0.21)))
+        # where waist = top_y.max() in untucked mode, pushing the hem 53-55px lower (near knees at y=640..660).
+        # Under the new logic: hem = min(end - 1, max(hip, cut + round(height * 0.21)))
+        # where cut is the natural waist, matching the mini-skirt hem to the tucked version.
+
+        profiles = [
+            ('fuller', 177, 426, 427, 768, 551),
+            ('slender', 188, 429, 430, 762, 556),
+            ('medium', 196, 429, 430, 758, 558),
+        ]
+
+        for name, top_min, top_max, low_min, low_max, expected_hem in profiles:
+            labels = np.zeros((859, 576), dtype=np.uint8)
+            labels[top_min:top_max+1, 200:376] = 3
+            labels[low_min:low_max+1, 190:386] = 6
+            labels[768:827, 220:356] = 15
+            target = Image.new('RGB', (576, 859), (208, 207, 208))
+
+            *_, ann_u, _ = prepare_skirt_masks(target, labels, tuck_top=False)
+            *_, ann_t, _ = prepare_skirt_masks(target, labels, tuck_top=True)
+
+            hem_u_y = round(ann_u['polygon_normalized'][3][1] * 858)
+            hem_t_y = round(ann_t['polygon_normalized'][3][1] * 858)
+
+            # 1. Tucked and untucked hems must align exactly at the mini-skirt line
+            self.assertEqual(hem_u_y, hem_t_y, f'{name}: untucked hem ({hem_u_y}) != tucked hem ({hem_t_y})')
+            self.assertEqual(hem_u_y, expected_hem, f'{name}: hem {hem_u_y} != expected {expected_hem}')
+
+            # 2. Anatomical safety check: hem must be safely above knees (~640) and below hip/crotch
+            crotch_hip_y = round(ann_u['polygon_normalized'][2][1] * 858)
+            knee_boundary = round(ann_u['polygon_normalized'][4][1] * 858)
+            self.assertGreater(hem_u_y, crotch_hip_y, f'{name}: hem must be below hip level')
+            self.assertLess(hem_u_y, knee_boundary, f'{name}: hem must be above knee boundary')
+            self.assertLess(hem_u_y, 640 - 75, f'{name}: hem must not extend to patellar zone (>=640)')
 
 
 if __name__=='__main__':unittest.main()

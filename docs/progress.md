@@ -589,3 +589,64 @@ Sonraki mantıklı adım: `K14` (`slender__skirt-untucked` renk kayması) ve tü
 - **Sonraki Mantıklı Adım**:
   - Değişikliklerin GitHub Desktop üzerinden incelenmesi ve kullanıcı tarafından commit edilmesi.
   - Kalan avatar profilleri (`slender`, `medium`) ve etek tokası/kemer koruması konularının sonraki aşamada ele alınması.
+
+## D17 Tucked Etek Profilleri G1 Geometrisi ve H04 Hibrit D-Ring Mikro-Geometri Simülasyonu — 14 Kasım 2026
+
+- **Kapsam ve Geçmiş Süreç**:
+  - **D17-D / D17-F / D17-G**: H01 (Medium), H04 (Fuller) ve H06 (Slender) profilleri için parabolik anatomik kavis + sert maske sınırı (G1) GPU doğrulaması yapıldı.
+  - **D17-H / Bağımsız İnceleme**: Üç profilin bağımsız görsel kabulünde H01 ve H06 **PASS** alırken; H04 (`fuller__skirt-tucked`) vakasında D-ring tokanın dikdörtgen metalik bloğa dönüşmesi nedeniyle **FAIL** kararı verildi. H01 ve H06 kilitlendi.
+  - **D17-I / D17-J**: Toka kaybının kök nedeni incelendi; hatanın CatVTON ham difüzyon denoise adımında oluştuğu, seed (17, 123, 2026) ve guidance (2.8, 3.0) artışlarının D-ring halkasını kurtarmadığı doğrulandı.
+  - **D17-K**: Salt okunur fizibilite çalışmasında CatVTON'un başarılı kemer/kumaş dokusunu koruyup tokayı lokal mikro-geometriyle tamamlama (Yöntem C) en düşük riskli yol olarak önerildi.
+- **D17-L Salt CPU Simülasyonu ve Bulguları**:
+  - H04 ham difüzyon çıktısı (`d17_fuller_var_G1_raw.png`) ve katalog eteği (`data/benchmark-10/skirt.jpg`) kullanılarak salt CPU üzerinde 5 varyant simüle edildi:
+    - *A (Baseline)*: Mevcut açık/eksik toka referansı.
+    - *B (Tam D-Ring Aktarımı)*: Tüm çerçeve aktarıldı (149 px değişim; sağ kenarda hafif çift parlama).
+    - *C (Yalnızca Sol Yay)*: CatVTON'un ürettiği sağ dikey metal çubuk ($x_{lb} \in [377, 380]$) ve üst birleşimi korundu; yalnızca eksik sol dairesel kavis aktarıldı (119 px değişim).
+    - *D1 (Sert Kenar)*: İkili eşik (91 px değişim; merdiven basamağı pikselleşme).
+    - *D2 (Hafif Antialiasing - Subpixel AA)*: 0.8px Gauss geçişi (157 px değişim). D-ring kavisli, kapalı, iç negatif boşluğu CatVTON'un koyu kemer kumaşıyla dolu (ortalama parlaklık 24.3), dikişsiz ve metalik parlaklığı kusursuz.
+    - *D3 (Kontrollü Kenar Gölgesi)*: 1px lokal temas gölgesi (157 px değişim).
+  - *Sıkı Bounding Box Denetimi*: $y_{lb} \in [440, 459], x_{lb} \in [360, 380]$ sınırları dışındaki piksel değişimi: **0 piksel** (`outside_bbox = 0`).
+  - *Nihai Boyama & Unletterbox*: $576 \times 859$ nihai boyutta piksel değişimi kesinlikle $y \in [367, 386], x \in [266, 284]$ ile sınırlı kaldı (221 px). Kumaş dokusu, bel kavisi, tişört hem'i ve pileler %100 korundu.
+  - *En Başarılı Prototip*: **Varyant D2** (Subpixel AA). D-ring ürün kimliğini tam sağlarken yabancı nesne / yama hissi oluşturmadı.
+- **Kapsam Dışı ve Açık Kalan Konular**:
+  - Bu bir görsel prototip simülasyonudur; üretim koduna (`local_skirt.py`, `local_skirt_inputs.py`), testlere veya manifestlere entegre edilmemiştir.
+  - H01 ve H06 sonuçlarına kesinlikle dokunulmamıştır.
+  - K14 bilinen sorunu açılmamıştır.
+- **Sonraki Mantıklı Adım**:
+  - Kullanıcının D17-L görsel simülasyon sonuçlarını (`d17_h04_sim_buckle_zoom_comparison.jpg`, `d17_h04_sim_final_comparison.jpg`) incelemesi.
+  - Onaylanması durumunda, H04 için bu mikro-tamamlama mantığının üretim hattına kontrollü ve test güvenceli entegrasyon tasarımının yapılması. (Bu sonraki adım önerisi D17-X2 kararıyla yürürlükten kaldırılmıştır; yalnızca tarihsel kayıt olarak korunur.)
+
+## D17-X2 — H04 D-ring Araştırmasının Beklemeye Alınması — 15 Kasım 2026
+
+- **Karar ve gerekçe**:
+  - D17-X/X1 incelemeleri sonrasında H04 (`fuller__skirt-tucked`) D-ring toka araştırması kullanıcı kararıyla şimdilik beklemeye alındı. Sorun çözülmüş veya araştırma başarıyla tamamlanmış sayılmıyor.
+  - D17-W'nin 36 metal key listesi, ölçüm pencereleri ve aday eşiklerden türetilmiştir; doğrulanmış fiziksel parça maskesi olarak kabul edilmeyecek.
+  - Beş hedef query'nin tamamı doğrulanmış kaynak–hedef eşlemesi olarak kabul edilmeyecek. Özellikle kaynak bağlantılarının ayrık fiziksel sınırları ile hedefte kayıp sol yay, alt kapanış ve iç boşluk eşlemeleri yeterince kanıtlanmadı.
+  - Önceki hücre ve bellek hesapları teknik fizibilite bulguları olarak korunur; fiziksel parça doğrulaması, görsel başarı veya GPU deneyine hazırlık kanıtı sayılmaz.
+
+- **D17-L tarihçesinin durumu**:
+  - Yukarıdaki D17-L simülasyon kaydı ve geçmiş değerlendirmeler tarihçe olarak korunur.
+  - D17-L'nin H04 mikro-tamamlama mantığını üretim hattına entegre etmeye yönelik eski sonraki adım önerisi bu kararla yürürlükten kaldırıldı. Prototipe ilişkin olumlu ifadeler H04 için nihai kalite kabulü anlamına gelmez.
+  - H04 toka onarımı için sticker/compositing veya kaynak piksellerini doğrudan kopyalayan bir çözüme geçilmeyecek.
+
+- **Korunan durumlar ve kapsam sınırları**:
+  - H04, kaynak D-ring toka biçiminin korunmaması nedeniyle FAIL durumunda kalır; PASS veya üretime hazır kabul edilmeyecek.
+  - H01 ve H06 mevcut kabul durumlarını korur; yeniden değerlendirmeye açılmayacak.
+  - D16/H05 kabul edilmiş çözümü korunur. K14 kesinlikle açılmayacak.
+  - Attention bias tasarımı, uygulaması ve GPU deneyi yapılmayacak.
+
+- **Kanıtların bulunduğu nokta**:
+  - D17-F G1 ham/nihai görüntüleri, maskesi, D17-D B karşılaştırma kayıtları, kaynak condition ve hedef girdileri ile önceki SHA256 kayıtları mevcut konumlarında korunur; bu karar bunları değiştirmez.
+  - Antigravity arşivi: `C:/Users/Hulusi/.gemini/antigravity/brain/610559de-0a6a-43aa-8631-0ab88d01826e/`.
+  - H04 girdileri: `runs/pilot-20261112T223705Z-20783618/cases/fuller__skirt-tucked/`.
+  - Deney betiklerinin arşiv içerikleri `.system_generated/logs/transcript_full.jsonl` içinde bulunur. G1'in mevcut üretim maske koduyla aynı olduğu varsayılmaz.
+  - `labels_fuller_top.npy` bulunamamıştır; tarihsel olarak import edilen kod/ortamın kesin sürüm bağı tam sabitlenmiş değildir.
+  - D17-T–X1 raporları ve ayrıntılı hash/sayım tabloları ilgili sohbet geçmişindedir; bunlar için ayrı rapor dosyaları oluşturulmamıştır.
+
+- **Yeniden açılma koşulları**:
+  - Kaynakta birbirini dışlayan metal çekirdekleri, iç boşluk ve belirsiz bağlantı alanlarını gösteren incelenebilir etiketleme; veya bu ayrıntıları gerçekten ayırt etmeyi sağlayan daha açık gerçek kaynak görüntüsü.
+  - Korunmuş hedef metal üzerinden gerekçelendirilmiş kaynak–hedef geometrik eşleme; özellikle kayıp sol yay, alt kapanış ve korunacak koyu alan sınırları için yeni kanıt.
+  - Deney gündeme gelirse sabit girdiler, maskeler ve kod/ortam bilgisiyle yeniden üretilebilir G1 referansı.
+  - Yeni kanıt tek başına araştırmayı veya GPU çalışmasını başlatmaz. Yeniden açılma için kullanıcının açık kararı gerekir.
+
+Bu kayıt kullanıcı kararını belgeler; yeni kod, test, inference, benchmark veya GPU doğrulaması yapıldığı anlamına gelmez.
